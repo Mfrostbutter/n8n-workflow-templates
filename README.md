@@ -13,6 +13,7 @@ Each workflow lives in its own folder under [`workflows/`](workflows/) with a de
 | [Document Fabric — Drive to Qdrant](workflows/document-fabric-drive-to-qdrant/) | Watches a Google Drive folder, converts each new document to Markdown, tags metadata at the document level, chunks on structure, and upserts into a Qdrant vector store. The ingestion half of a high-accuracy RAG pipeline. |
 | [AI Product Photo Studio](workflows/ai-product-photo-studio/) | Turn a plain product photo into a styled studio shot from a single n8n form. Upload a photo, pick a look, describe the scene, and an image-to-image model re-renders it into a professional product or lifestyle shot. ~$0.11 per image. |
 | [Wazuh AI Security Analyzer](workflows/wazuh-ai-security-analyzer/) | Turns every high-severity Wazuh alert into an AI-triaged Slack message with risk assessment, likely cause, and the exact shell commands to investigate. Infrastructure-context aware. ~$0.001 per alert with Claude Haiku. |
+| [Agenius3D Social Media Pipeline](workflows/agenius3d-social-media-pipeline/) | Fully automated social content engine: on a schedule, writes a caption + image prompt with Claude Haiku, generates an original image via KIE.ai, publishes to Facebook + Instagram, logs to Airtable, and notifies on Telegram. Grid-aware 12-post cycle with topic dedup. |
 
 ## How to import
 
