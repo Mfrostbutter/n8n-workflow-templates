@@ -1,5 +1,5 @@
 {
-  "name": "Autonomous - Social Media Pipeline v3",
+  "name": "Autonomous Social Media Pipeline v3",
   "nodes": [
     {
       "parameters": {
@@ -711,7 +711,7 @@
     },
     {
       "parameters": {
-        "content": "# Agenius3D - Social Media Pipeline v3\n\n**Grid-aware posting** with 12-post IG cycle:\nRow 1: Models x3 | Row 2: Tip/Tech/Tip | Row 3: Art x3 | Row 4: Design x3\n\n**Dedup**: Fetches past posts from Airtable before generating to avoid topic repetition.\n\n**Flow**: Trigger → Fetch Cycle Pos → Config → Fetch Past Topics → Prep Dedup → Route → Generate (Claude Haiku 4.5) → Parse → Merge → KIE Image Gen → FB + IG Publish → Log to Airtable → Telegram Notification",
+        "content": "# Autonomous Social Media Pipeline v3\n\n**Grid-aware posting** with 12-post IG cycle:\nRow 1: Models x3 | Row 2: Tip/Tech/Tip | Row 3: Art x3 | Row 4: Design x3\n\n**Dedup**: Fetches past posts from Airtable before generating to avoid topic repetition.\n\n**Flow**: Trigger → Fetch Cycle Pos → Config → Fetch Past Topics → Prep Dedup → Route → Generate (Claude Haiku 4.5) → Parse → Merge → KIE Image Gen → FB + IG Publish → Log to Airtable → Telegram Notification",
         "height": 300,
         "width": 800
       },

@@ -56,7 +56,7 @@ In the **Config** node, replace:
 Then replace `YOUR_AIRTABLE_BASE_ID` / `YOUR_AIRTABLE_TABLE_ID` in the URLs of the three Airtable HTTP nodes (`Fetch Last Record`, `Fetch Past Topics`, `Log to Airtable`).
 
 ### 5. Create the Airtable table
-The log/dedup table needs these fields: `Content Title`, `Type`, `Script/Caption`, `Status`, `Post Date`, `Output Type`, `Generation Source`, `Image Prompt`, `KIE Task ID`, `IG Post ID`, `Source Image`, `Cycle Position`.
+Import [`airtable/content-table.csv`](airtable/content-table.csv) into your base to stand up the table in one click, then set the field types per [`airtable/SCHEMA.md`](airtable/SCHEMA.md). The table tracks published posts and drives the cycle/dedup logic.
 
 ### 6. Activate
 The schedule fires at 10am and 3pm (cron `0 0 10,15 * * *`, server timezone). Use the **Manual Trigger** to test a single run first.
