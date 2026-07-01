@@ -1,0 +1,240 @@
+{
+  "name": "YouTube to Knowledge",
+  "nodes": [
+    {
+      "parameters": {
+        "formTitle": "YouTube → Knowledge",
+        "formDescription": "Paste a YouTube link. We pull the captions, summarize them into a markdown research note, and save it to Google Drive.",
+        "path": "youtube-to-knowledge",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "YouTube URL",
+              "fieldType": "text",
+              "requiredField": true
+            }
+          ]
+        }
+      },
+      "id": "a1000000-0000-4000-8000-000000000001",
+      "name": "On form submission",
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.6,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "url": "http://ytdlp-captions:8080/transcript",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "url",
+              "value": "={{ $json['YouTube URL'] }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "a1000000-0000-4000-8000-000000000002",
+      "name": "Fetch Transcript",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        240,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build the LLM system + user prompt from the transcript service response.\n// Mirrors the AgeniusDesk youtube-research SINGLE_PASS breakdown.\nconst d = $input.first().json;\nconst title = d.title || '';\nconst channel = d.channel || '';\nconst url = d.url || '';\nconst transcript = d.text || '';\n\nconst system = 'You are a senior engineer and technical analyst. You turn a raw video ' +\n  'transcript into a dense, accurate research breakdown that a builder can learn from and ' +\n  'put into practice. You write plainly, no corporate filler, no em-dashes. You never invent ' +\n  'claims the transcript does not support. When the transcript has artifacts (repeated lines ' +\n  'from caption VAD), you silently de-duplicate them.';\n\nconst userPrompt =\n  'Produce a research breakdown of this video as GitHub-flavored markdown.\\n\\n' +\n  'Video: ' + (title || '(unknown title)') + '\\n' +\n  'Channel: ' + (channel || '(unknown)') + '\\n' +\n  'URL: ' + url + '\\n\\n' +\n  'Structure the breakdown with these sections (use ## headers):\\n\\n' +\n  '1. **One-line thesis** - the single core argument.\\n' +\n  '2. **Key concepts** - each major idea, defined clearly. Use subsections.\\n' +\n  '3. **Architectures / systems / workflows** - any concrete technical structure described ' +\n  '(pipelines, loops, components). Be precise.\\n' +\n  '4. **Notable techniques and golden nuggets** - the practical, actionable bits.\\n' +\n  '5. **Tools, people, and resources named** - with a one-line note on each.\\n' +\n  '6. **How to apply this** - map the ideas onto the reader\\'s own stack: what is worth ' +\n  'adopting and the concrete next step. Be specific and opinionated.\\n\\n' +\n  'Rules:\\n' +\n  '- Faithful to the transcript. Do not fabricate.\\n' +\n  '- Dense and skimmable. Tables and bullets over paragraphs where it helps.\\n' +\n  '- No em-dashes. No hype words (groundbreaking, revolutionary, game-changing).\\n\\n' +\n  'Transcript:\\n---\\n' + transcript + '\\n---\\n';\n\nreturn [{ json: Object.assign({}, d, { system: system, userPrompt: userPrompt }) }];\n"
+      },
+      "id": "a1000000-0000-4000-8000-000000000003",
+      "name": "Build Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "anthropicApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 8000, temperature: 0.4, system: $json.system, messages: [ { role: 'user', content: $json.userPrompt } ] }) }}",
+        "options": {}
+      },
+      "id": "a1000000-0000-4000-8000-000000000004",
+      "name": "Generate Breakdown",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        720,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Assemble the final markdown note (frontmatter + LLM breakdown) and a filename.\nconst meta = $('Fetch Transcript').first().json;\nconst body = $input.first().json; // Anthropic response\n\nlet text = '';\ntry {\n  text = (body.content || [])\n    .filter(function (b) { return b.type === 'text'; })\n    .map(function (b) { return b.text; })\n    .join('\\n')\n    .trim();\n} catch (e) { text = ''; }\nif (!text) { throw new Error('LLM returned no text'); }\n\nconst title = meta.title || 'Untitled';\nconst channel = meta.channel || '';\nconst url = meta.url || '';\nconst videoId = meta.video_id || '';\n\nfunction slugify(s) {\n  return (s || 'note').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').substring(0, 80) || 'note';\n}\nconst q = function (s) { return String(s || '').replace(/\"/g, '\\\\\"'); };\nconst date = new Date().toISOString().split('T')[0];\nconst filename = slugify(title) + '-' + videoId + '.md';\n\nconst frontmatter =\n  '---\\n' +\n  'title: \"' + q(title) + '\"\\n' +\n  'source: ' + url + '\\n' +\n  'channel: \"' + q(channel) + '\"\\n' +\n  'video_id: ' + videoId + '\\n' +\n  'captured: ' + date + '\\n' +\n  'type: youtube-research\\n' +\n  '---\\n\\n';\n\nconst markdown = frontmatter + '# ' + title + '\\n\\n' + text + '\\n';\n\nreturn [{ json: { filename: filename, markdown: markdown, title: title, video_id: videoId, source: url } }];\n"
+      },
+      "id": "a1000000-0000-4000-8000-000000000005",
+      "name": "Build Markdown",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        960,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "file",
+        "operation": "createFromText",
+        "content": "={{ $json.markdown }}",
+        "name": "={{ $json.filename }}",
+        "driveId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "My Drive",
+          "cachedResultName": "My Drive"
+        },
+        "folderId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "YOUR_DRIVE_FOLDER_ID",
+          "cachedResultName": "Knowledge"
+        },
+        "options": {}
+      },
+      "id": "a1000000-0000-4000-8000-000000000006",
+      "name": "Save to Google Drive",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        1200,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "completion",
+        "respondWith": "text",
+        "completionTitle": "Saved to Google Drive",
+        "completionMessage": "=Your research note \"{{ $json.name }}\" was saved.\n\nOpen it: {{ $json.webViewLink }}"
+      },
+      "id": "a1000000-0000-4000-8000-000000000007",
+      "name": "Done",
+      "type": "n8n-nodes-base.form",
+      "typeVersion": 2.5,
+      "position": [
+        1440,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "content": "# YouTube → Knowledge\n\nPaste a YouTube link in the form. The workflow pulls the captions (via a small yt-dlp service), summarizes them into a structured markdown research note with an LLM, and saves the note to Google Drive.\n\n**Setup:** point **Fetch Transcript** at your yt-dlp service (see `service/`), attach an **Anthropic** credential to **Generate Breakdown**, attach **Google Drive** to **Save to Google Drive** and set the target folder.",
+        "height": 220,
+        "width": 720
+      },
+      "id": "a1000000-0000-4000-8000-0000000000n1",
+      "name": "Header Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        -260
+      ]
+    }
+  ],
+  "connections": {
+    "On form submission": {
+      "main": [
+        [
+          {
+            "node": "Fetch Transcript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Transcript": {
+      "main": [
+        [
+          {
+            "node": "Build Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Prompt": {
+      "main": [
+        [
+          {
+            "node": "Generate Breakdown",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Breakdown": {
+      "main": [
+        [
+          {
+            "node": "Build Markdown",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Markdown": {
+      "main": [
+        [
+          {
+            "node": "Save to Google Drive",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save to Google Drive": {
+      "main": [
+        [
+          {
+            "node": "Done",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "meta": {}
+}
