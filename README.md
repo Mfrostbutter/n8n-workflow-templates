@@ -1,5 +1,7 @@
 # n8n Workflow Templates
 
+[![Validate workflows](https://github.com/Mfrostbutter/n8n-workflow-templates/actions/workflows/validate-workflows.yml/badge.svg)](https://github.com/Mfrostbutter/n8n-workflow-templates/actions/workflows/validate-workflows.yml)
+
 Production-ready [n8n](https://n8n.io) workflows I've built and open-sourced. Import the JSON, wire up your own credentials, run.
 
 Each workflow lives in its own folder under [`workflows/`](workflows/) with a dedicated README covering setup, required credentials, and the gotchas that aren't obvious from the canvas.
