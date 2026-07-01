@@ -4,6 +4,8 @@ A fully automated social content engine for a maker/3D-printing brand. On a sche
 
 Runs ~10 posts/week with zero manual effort. Cost is dominated by image generation (a few cents per post) plus a fraction of a cent for the Haiku call.
 
+![Workflow](assets/workflow.png)
+
 ## Flow
 
 ```
