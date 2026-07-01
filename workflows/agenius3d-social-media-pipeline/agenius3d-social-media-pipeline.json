@@ -17,8 +17,8 @@
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
       "position": [
-        240,
-        336
+        0,
+        300
       ]
     },
     {
@@ -28,158 +28,134 @@
       "type": "n8n-nodes-base.manualTrigger",
       "typeVersion": 1,
       "position": [
-        240,
-        496
+        0,
+        460
       ]
     },
     {
       "parameters": {
-        "jsCode": "// ============================================================\n// CONFIG v3 — 12-post IG grid cycle\n// ============================================================\nconst config = {\n  brand: 'Agenius 3D',\n  brandVoice: 'maker-focused, technical but accessible, enthusiastic about 3D printing and AI design',\n  hashtags: {\n    base: '#agenius3d #3dprinting #3dprinted #maker #makerspace #3ddesign',\n    tips: '#3dprintingtips #3dprinthacks #makertips #fdm #printinglife',\n    models: '#3dmodel #3dart #cad #productdesign #prototyping',\n    design: '#productdesign #caddesign #prototyping #designprocess #3dmodeling',\n    art: '#3dart #digitalart #generativeart #3dprintedart #makersmovement',\n    tech: '#3dprintingtech #fdmprinting #slicersettings #printquality #filament'\n  },\n  kieModel: 'nano-banana-2',\n  kieAspectRatio: '1:1',\n  kieResolution: '2K',\n  kieOutputFormat: 'jpg',\n  maxPollAttempts: 30,\n  pollIntervalSeconds: 5,\n  telegramChatId: 'YOUR_TELEGRAM_CHAT_ID',\n  airtableBaseId: 'YOUR_AIRTABLE_BASE_ID',\n  airtableTableId: 'YOUR_AIRTABLE_TABLE_ID',\n  metaPageId: 'YOUR_META_PAGE_ID',\n  metaIgUserId: 'YOUR_META_IG_USER_ID',\n  contentTypes: ['tips', 'models', 'design', 'tech', 'art']\n};\n\n// ============================================================\n// 12-POST IG GRID CYCLE\n// Row pattern: Models x3, Tip/Tech/Tip, Art x3, Design x3\n// ============================================================\nconst cycle = [\n  'models', 'models', 'models',   // Row 1\n  'tips',   'tech',   'tips',     // Row 2\n  'art',    'art',    'art',      // Row 3\n  'design', 'design', 'design'    // Row 4\n];\n\n// Get last cycle position from Airtable fetch\nconst records = $input.first().json.records || [];\nlet lastPosition = -1;\nif (records.length > 0 && records[0].fields && records[0].fields['Cycle Position'] != null) {\n  lastPosition = parseInt(records[0].fields['Cycle Position'], 10);\n}\n\nconst position = (lastPosition + 1) % 12;\nconst contentType = cycle[position];\n\nconfig.contentType = contentType;\nconfig.cyclePosition = position;\nconfig.cycleRow = Math.floor(position / 3);\nconfig.runTimestamp = new Date().toISOString();\n\nreturn [{ json: config }];\n"
+        "url": "https://api.airtable.com/v0/YOUR_AIRTABLE_BASE_ID/YOUR_AIRTABLE_TABLE_ID",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "fields[]",
+              "value": "Cycle Position"
+            },
+            {
+              "name": "sort[0][field]",
+              "value": "Post Date"
+            },
+            {
+              "name": "sort[0][direction]",
+              "value": "desc"
+            },
+            {
+              "name": "maxRecords",
+              "value": "1"
+            },
+            {
+              "name": "filterByFormula",
+              "value": "NOT({Cycle Position}='')"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $vars.AIRTABLE_PAT }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "d4c384c4-3d99-4a55-be52-1c5ee184d982",
+      "name": "Fetch Last Record",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        220,
+        380
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================\n// CONFIG — this is the ONLY node you edit to adapt the pipeline\n// to a different industry. Set your vertical, your 5 topics,\n// and the posting cycle. Everything downstream is data-driven.\n// ============================================================\nconst config = {\n  brand: 'Your Brand',\n  vertical: '3D printing and making',              // <-- your industry / niche\n  brandVoice: 'technical but accessible, enthusiastic, community-driven',\n  llmModel: 'claude-haiku-4-5-20251001',\n\n  // Image generation (KIE.ai)\n  kieModel: 'nano-banana-2',\n  kieAspectRatio: '1:1',\n  kieResolution: '2K',\n  kieOutputFormat: 'jpg',\n  maxPollAttempts: 30,\n  pollIntervalSeconds: 5,\n\n  // Destinations — fill these in\n  telegramChatId: 'YOUR_TELEGRAM_CHAT_ID',\n  airtableBaseId: 'YOUR_AIRTABLE_BASE_ID',\n  airtableTableId: 'YOUR_AIRTABLE_TABLE_ID',\n  metaPageId: 'YOUR_META_PAGE_ID',\n  metaIgUserId: 'YOUR_META_IG_USER_ID',\n\n  // Hashtags added to every post (topic hashtags are appended per post)\n  baseHashtags: '#yourbrand #yourindustry',\n\n  // ---- Your 5 content topics ----\n  // label:     shown in Airtable's \"Type\" field and used in the prompt\n  // angle:     the editorial instruction for this topic\n  // subtopics: the model rotates through these for variety\n  // hashtags:  appended to baseHashtags for this topic\n  topics: {\n    t1: {\n      label: 'Models',\n      angle: 'Showcase notable creations and inspiring examples in this space.',\n      subtopics: ['functional pieces', 'artistic pieces', 'practical builds', 'standout designs'],\n      hashtags: '#showcase #inspiration'\n    },\n    t2: {\n      label: 'Tips',\n      angle: 'Give one actionable, specific tip that helps people improve.',\n      subtopics: ['getting started', 'common mistakes', 'quality improvements', 'time savers'],\n      hashtags: '#tips #howto'\n    },\n    t3: {\n      label: 'Deep Dive',\n      angle: 'Explain one technical topic in real depth for an advanced audience.',\n      subtopics: ['fundamentals', 'advanced techniques', 'troubleshooting', 'the science behind it'],\n      hashtags: '#deepdive #technical'\n    },\n    t4: {\n      label: 'Process',\n      angle: 'Walk through part of the creation or design process.',\n      subtopics: ['ideation', 'iteration', 'tools and workflow', 'from concept to finished'],\n      hashtags: '#process #behindthescenes'\n    },\n    t5: {\n      label: 'Art',\n      angle: 'Celebrate the creative and artistic side of this space.',\n      subtopics: ['abstract work', 'creative experiments', 'standout aesthetics', 'unexpected ideas'],\n      hashtags: '#art #creative'\n    }\n  },\n\n  // 12-slot posting cycle (an Instagram grid of 4 rows x 3). Reference the\n  // topic keys above. Change the mix to whatever suits your channel.\n  cycle: ['t1', 't1', 't1', 't2', 't3', 't2', 't5', 't5', 't5', 't4', 't4', 't4']\n};\n\n// Advance the cycle position based on the last logged post\nconst records = $input.first().json.records || [];\nlet lastPosition = -1;\nif (records.length > 0 && records[0].fields && records[0].fields['Cycle Position'] != null) {\n  lastPosition = parseInt(records[0].fields['Cycle Position'], 10);\n}\nconst position = (lastPosition + 1) % config.cycle.length;\n\nconfig.contentType = config.cycle[position];                       // slot key, e.g. 't1'\nconfig.contentLabel = (config.topics[config.contentType] || {}).label || config.contentType;\nconfig.cyclePosition = position;\nconfig.cycleRow = Math.floor(position / 3);\nconfig.runTimestamp = new Date().toISOString();\n\nreturn [{ json: config }];\n"
       },
       "id": "08ac1219-5cba-41d0-ae1f-276ce09c8941",
       "name": "Config",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        880,
-        512
+        420,
+        380
       ]
     },
     {
       "parameters": {
-        "rules": {
-          "values": [
+        "url": "https://api.airtable.com/v0/YOUR_AIRTABLE_BASE_ID/YOUR_AIRTABLE_TABLE_ID",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
             {
-              "conditions": {
-                "options": {
-                  "caseSensitive": true,
-                  "leftValue": "",
-                  "typeValidation": "strict",
-                  "version": 1
-                },
-                "conditions": [
-                  {
-                    "id": "430955bb-cdaa-4c97-abc9-762d20549850",
-                    "leftValue": "={{ $json.contentType }}",
-                    "rightValue": "tips",
-                    "operator": {
-                      "type": "string",
-                      "operation": "equals"
-                    }
-                  }
-                ],
-                "combinator": "and"
-              },
-              "renameOutput": true,
-              "outputKey": "Tips"
+              "name": "fields[]",
+              "value": "Content Title"
             },
             {
-              "conditions": {
-                "options": {
-                  "caseSensitive": true,
-                  "leftValue": "",
-                  "typeValidation": "strict",
-                  "version": 1
-                },
-                "conditions": [
-                  {
-                    "id": "c00f79d5-6dc0-458c-aadb-ac81a34724ab",
-                    "leftValue": "={{ $json.contentType }}",
-                    "rightValue": "models",
-                    "operator": {
-                      "type": "string",
-                      "operation": "equals"
-                    }
-                  }
-                ],
-                "combinator": "and"
-              },
-              "renameOutput": true,
-              "outputKey": "Models"
+              "name": "fields[]",
+              "value": "Image Prompt"
             },
             {
-              "conditions": {
-                "options": {
-                  "caseSensitive": true,
-                  "leftValue": "",
-                  "typeValidation": "strict",
-                  "version": 1
-                },
-                "conditions": [
-                  {
-                    "id": "31eda6e7-6795-478b-8b94-a1ee759e6e70",
-                    "leftValue": "={{ $json.contentType }}",
-                    "rightValue": "design",
-                    "operator": {
-                      "type": "string",
-                      "operation": "equals"
-                    }
-                  }
-                ],
-                "combinator": "and"
-              },
-              "renameOutput": true,
-              "outputKey": "Design"
+              "name": "sort[0][field]",
+              "value": "Post Date"
             },
             {
-              "conditions": {
-                "options": {
-                  "caseSensitive": true,
-                  "leftValue": "",
-                  "typeValidation": "strict",
-                  "version": 1
-                },
-                "conditions": [
-                  {
-                    "id": "f6e67f12-bc49-4ee1-8185-2b1ecc17c46b",
-                    "leftValue": "={{ $json.contentType }}",
-                    "rightValue": "tech",
-                    "operator": {
-                      "type": "string",
-                      "operation": "equals"
-                    }
-                  }
-                ],
-                "combinator": "and"
-              },
-              "renameOutput": true,
-              "outputKey": "Tech"
+              "name": "sort[0][direction]",
+              "value": "desc"
             },
             {
-              "conditions": {
-                "options": {
-                  "caseSensitive": true,
-                  "leftValue": "",
-                  "typeValidation": "strict",
-                  "version": 1
-                },
-                "conditions": [
-                  {
-                    "id": "e65cb6c0-689f-4965-876a-0d90d617ddd4",
-                    "leftValue": "={{ $json.contentType }}",
-                    "rightValue": "art",
-                    "operator": {
-                      "type": "string",
-                      "operation": "equals"
-                    }
-                  }
-                ],
-                "combinator": "and"
-              },
-              "renameOutput": true,
-              "outputKey": "Art"
+              "name": "maxRecords",
+              "value": "15"
+            },
+            {
+              "name": "filterByFormula",
+              "value": "={{ 'AND({Type}=\\'' + $json.contentLabel + '\\',NOT({Status}=\\'\\'))' }}"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $vars.AIRTABLE_PAT }}"
             }
           ]
         },
         "options": {}
       },
-      "id": "b87e2a4a-7158-4217-b067-a98252fd2455",
-      "name": "Route by Content Type",
-      "type": "n8n-nodes-base.switch",
-      "typeVersion": 3,
+      "id": "a2fa4fa5-b506-43e5-b5ed-b7b327dccf6a",
+      "name": "Fetch Past Topics",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
       "position": [
-        1040,
-        464
+        620,
+        380
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build the topic-dedup context AND the generation prompt from the selected\n// topic. All industry-specific wording comes from the Config node's topics.\nconst records = $input.first().json.records || [];\nconst config = $('Config').first().json;\nconst topic = config.topics[config.contentType] || {};\n\nconst pastTopics = records.map(function (r) {\n  const title = r.fields['Content Title'] || '';\n  const prompt = (r.fields['Image Prompt'] || '').substring(0, 120);\n  return '- ' + title + ' (prompt: ' + prompt + '...)';\n}).join('\\n') || 'No previous posts found — this is the first post of this type.';\n\nconst subtopics = (topic.subtopics || []).join(', ');\nconst allHashtags = [config.baseHashtags, topic.hashtags].filter(Boolean).join(' ');\n\nconst system = 'You are a social content creator for ' + config.brand +\n  ', working in the ' + config.vertical + ' space. Your voice is ' + config.brandVoice +\n  '. You create content that educates and inspires this audience.';\n\nconst userPrompt =\n  'Generate a \"' + topic.label + '\" post about ' + config.vertical + '.\\n' +\n  'Angle: ' + topic.angle + '\\n' +\n  'Rotate through these subtopics for variety: ' + subtopics + '. Pick whichever is most useful and timely.\\n\\n' +\n  'Respond with EXACTLY this JSON (no markdown, no extra text):\\n' +\n  '{\\n' +\n  '  \"subtopic\": \"the specific subtopic you chose\",\\n' +\n  '  \"title\": \"short catchy title (max 8 words)\",\\n' +\n  '  \"caption\": \"an Instagram caption, 2-3 short paragraphs, ends with a question to engage followers, and includes these hashtags: ' + allHashtags + '\",\\n' +\n  '  \"imagePrompt\": \"a text-to-image prompt for a striking, professional photo illustrating this post (2-4 sentences describing subject, lighting, and composition; no text in the image)\",\\n' +\n  '  \"voiceoverScript\": \"a 15-25 second voiceover script, conversational and energetic, starts with a hook\"\\n' +\n  '}\\n\\n' +\n  'IMPORTANT — do NOT repeat any of these recent posts:\\n' +\n  pastTopics + '\\n\\n' +\n  'Generate fresh, unique content on a subtopic not listed above.';\n\nreturn [{ json: Object.assign({}, config, { pastTopics: pastTopics, system: system, userPrompt: userPrompt }) }];\n"
+      },
+      "id": "13f5f112-2065-45f0-955c-6fd6545bcb51",
+      "name": "Prep Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        820,
+        380
       ]
     },
     {
@@ -199,126 +175,29 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ model: 'claude-haiku-4-5-20251001', system: 'You are a 3D printing expert content creator for Agenius 3D, a maker-focused brand. Your voice is technical but accessible, enthusiastic, and community-driven. Generate content that educates and inspires makers.', messages: [ { role: 'user', content: 'Generate a 3D printing tip post. Rotate through these topics in variety: bed adhesion, layer height optimization, support strategies, filament storage, cooling settings, first layer calibration, retraction tuning, print speed vs quality, infill patterns, post-processing techniques. Pick whichever feels most useful and timely.\\n\\nRespond with EXACTLY this JSON format (no markdown, no extra text):\\n{\\n  \"tipTopic\": \"the specific topic\",\\n  \"tipTitle\": \"short catchy title (max 8 words)\",\\n  \"tipContent\": \"the actual tip in 2-3 sentences — specific and actionable\",\\n  \"imagePrompt\": \"KIE.ai text-to-image prompt for an infographic-style flat lay image showing 3D printing concept: [describe specific visual with materials, lighting, composition, 2-4 sentences max]\",\\n  \"caption\": \"Instagram caption with the tip, educational tone, 2-3 paragraphs, ends with question to engage followers, includes hashtags: #agenius3d #3dprinting #3dprinted #maker #makerspace #3ddesign #3dprintingtips #3dprinthacks #makertips #fdm #printinglife\",\\n  \"elevenLabsScript\": \"15-25 second voiceover script for this tip, conversational, energetic tone, starts with a hook\"\\n}' + '\\n\\nIMPORTANT — TOPIC DEDUPLICATION: You MUST pick a DIFFERENT topic than these recent posts. Do NOT repeat subjects or similar themes:\\n' + $('Prep Dedup').first().json.pastTopics + '\\n\\nNow generate completely fresh, unique content on a topic NOT listed above.' } ], max_tokens: 800, temperature: 0.8 }) }}",
+        "jsonBody": "={{ JSON.stringify({ model: $json.llmModel, system: $json.system, messages: [ { role: 'user', content: $json.userPrompt } ], max_tokens: 800, temperature: 0.8 }) }}",
         "options": {}
       },
       "id": "971f9e67-4683-4ddf-8011-13a6b2134d3e",
-      "name": "Generate Tips Content",
+      "name": "Generate Content",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1584,
-        160
+        1020,
+        380
       ]
     },
     {
       "parameters": {
-        "jsCode": "// Parse Tips GPT response and standardize output\nconst response = $input.first().json;\nconst config = $('Config').first().json;\n\nlet parsed;\ntry {\n  let content = response.content[0].text;\n  // Strip markdown code fences if present\n  content = content.replace(/^```(?:json)?\\s*/i, '').replace(/\\s*```$/,'').trim();\n  parsed = JSON.parse(content);\n} catch(e) {\n  throw new Error('Failed to parse Tips GPT response: ' + e.message);\n}\n\nreturn [{\n  json: {\n    contentType: 'tips',\n    contentSubtype: parsed.tipTopic || 'general',\n    imagePrompt: parsed.imagePrompt || 'Infographic-style flat lay of 3D printing tools and filament spools on a clean workshop surface, bright natural light, technical aesthetic',\n    caption: parsed.caption || '',\n    elevenLabsScript: parsed.elevenLabsScript || parsed.tipContent || '',\n    postTitle: parsed.tipTitle || '3D Printing Tip',\n    config\n  }\n}];"
+        "jsCode": "// Parse the AI response and standardize the output for the shared publish\n// pipeline. Forwards the config fields the downstream nodes need.\nconst response = $input.first().json;\nconst config = $('Config').first().json;\n\nlet parsed;\ntry {\n  let content = response.content[0].text;\n  content = content.replace(/^```(?:json)?\\s*/i, '').replace(/\\s*```$/, '').trim();\n  parsed = JSON.parse(content);\n} catch (e) {\n  throw new Error('Failed to parse AI response: ' + e.message);\n}\n\nreturn [{\n  json: {\n    contentType: config.contentType,\n    contentLabel: config.contentLabel,\n    contentSubtype: parsed.subtopic || config.contentLabel,\n    postTitle: parsed.title || config.contentLabel,\n    caption: parsed.caption || '',\n    imagePrompt: parsed.imagePrompt || ('Professional photo illustrating ' + config.vertical + ', clean composition, natural light'),\n    elevenLabsScript: parsed.voiceoverScript || '',\n    // forward config fields the downstream pipeline needs\n    brand: config.brand,\n    kieModel: config.kieModel,\n    kieAspectRatio: config.kieAspectRatio,\n    kieResolution: config.kieResolution,\n    kieOutputFormat: config.kieOutputFormat,\n    maxPollAttempts: config.maxPollAttempts,\n    telegramChatId: config.telegramChatId,\n    airtableBaseId: config.airtableBaseId,\n    airtableTableId: config.airtableTableId,\n    metaPageId: config.metaPageId,\n    metaIgUserId: config.metaIgUserId,\n    runTimestamp: config.runTimestamp\n  }\n}];\n"
       },
       "id": "f0519eea-cf42-432c-92e8-b83943e7c38d",
-      "name": "Parse Tips",
+      "name": "Parse Content",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1760,
-        160
-      ]
-    },
-    {
-      "parameters": {
-        "method": "POST",
-        "url": "https://api.anthropic.com/v1/messages",
-        "authentication": "predefinedCredentialType",
-        "nodeCredentialType": "anthropicApi",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "anthropic-version",
-              "value": "2023-06-01"
-            }
-          ]
-        },
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ model: 'claude-haiku-4-5-20251001', system: 'You are a 3D design content creator for Agenius 3D, a maker and AI-driven 3D printing brand. Your voice celebrates creativity, craftsmanship, and the intersection of AI and making.', messages: [ { role: 'user', content: 'Generate a 3D model showcase post. Pick a compelling 3D model type or design concept to feature — could be functional (phone stand, cable organizer, tool holder, wall art, planter, lamp shade, etc.) or artistic (abstract sculpture, architectural model, character figurine, geometric art). Vary between practical and artistic picks.\\n\\nRespond with EXACTLY this JSON format (no markdown, no extra text):\\n{\\n  \"modelName\": \"name of the model/concept\",\\n  \"modelDescription\": \"what it is and why makers love it\",\\n  \"imagePrompt\": \"KIE.ai text-to-image prompt for a dramatic hero product shot of a 3D printed object in a maker workshop setting: professional photography, dramatic side lighting, shallow depth of field, [specific object description, materials, textures, 2-4 sentences max]\",\\n  \"caption\": \"Instagram caption celebrating this design, inspiring tone, 2-3 paragraphs, ends with CTA to share their prints or tag us, includes hashtags: #agenius3d #3dprinting #3dprinted #maker #makerspace #3ddesign #3dmodel #3dart #cad #productdesign #prototyping\",\\n  \"elevenLabsScript\": \"15-25 second voiceover script showcasing this design, enthusiastic and visual, starts with a hook\"\\n}' + '\\n\\nIMPORTANT — TOPIC DEDUPLICATION: You MUST pick a DIFFERENT topic than these recent posts. Do NOT repeat subjects or similar themes:\\n' + $('Prep Dedup').first().json.pastTopics + '\\n\\nNow generate completely fresh, unique content on a topic NOT listed above.' } ], max_tokens: 800, temperature: 0.85 }) }}",
-        "options": {}
-      },
-      "id": "aaa3e7c1-fc6d-4e7e-84ac-d22b52c182b8",
-      "name": "Generate Models Content",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        1584,
-        320
-      ]
-    },
-    {
-      "parameters": {
-        "jsCode": "// Parse Models GPT response and standardize output\nconst response = $input.first().json;\nconst config = $('Config').first().json;\n\nlet parsed;\ntry {\n  let content = response.content[0].text;\n  // Strip markdown code fences if present\n  content = content.replace(/^```(?:json)?\\s*/i, '').replace(/\\s*```$/,'').trim();\n  parsed = JSON.parse(content);\n} catch(e) {\n  throw new Error('Failed to parse Models GPT response: ' + e.message);\n}\n\nreturn [{\n  json: {\n    contentType: 'models',\n    contentSubtype: parsed.modelName || 'showcase',\n    imagePrompt: parsed.imagePrompt || 'Hero product shot of an intricate 3D printed object on a dark workshop workbench, dramatic side rim lighting, shallow depth of field, maker aesthetic',\n    caption: parsed.caption || '',\n    elevenLabsScript: parsed.elevenLabsScript || parsed.modelDescription || '',\n    postTitle: parsed.modelName || '3D Model Showcase',\n    config\n  }\n}];"
-      },
-      "id": "d57960b1-e77a-47aa-9c94-c0cd11827354",
-      "name": "Parse Models",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        1760,
-        320
-      ]
-    },
-    {
-      "parameters": {
-        "method": "POST",
-        "url": "https://api.anthropic.com/v1/messages",
-        "authentication": "predefinedCredentialType",
-        "nodeCredentialType": "anthropicApi",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "anthropic-version",
-              "value": "2023-06-01"
-            }
-          ]
-        },
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ model: 'claude-haiku-4-5-20251001', system: 'You are a technical 3D printing expert content creator for Agenius 3D. You write deep-dive technical content that helps makers level up their skills. Your audience ranges from intermediate to advanced makers who appreciate real technical detail.', messages: [ { role: 'user', content: 'Generate a technical 3D printing deep-dive post. Topics to rotate through: slicer settings and their effects, material science (PLA vs PETG vs ASA vs TPU vs Nylon), printer calibration (bed leveling, e-steps, flow rate, pressure advance), print quality troubleshooting, bridging and overhang performance, layer adhesion and strength, temperature towers and tuning, print cooling science, wall count and infill impact on strength.\\n\\nRespond with EXACTLY this JSON format (no markdown, no extra text):\\n{\\n  \"techTopic\": \"the specific technical topic\",\\n  \"techTitle\": \"short technical title (max 8 words)\",\\n  \"techContent\": \"the technical insight in 2-3 sentences — specific, accurate, useful\",\\n  \"imagePrompt\": \"KIE.ai text-to-image prompt for a technical diagram or extreme close-up detail shot concept: [specific 3D printing component or cross-section, technical lighting, macro photography style, 2-4 sentences max]\",\\n  \"caption\": \"Instagram caption with technical insight, informative and educational tone for advanced makers, 2-3 paragraphs, ends with tip or question for community, includes hashtags: #agenius3d #3dprinting #3dprinted #maker #makerspace #3ddesign #3dprintingtech #fdmprinting #slicersettings #printquality #filament\",\\n  \"elevenLabsScript\": \"15-25 second voiceover script on this tech topic, authoritative but accessible, starts with hook\"\\n}' + '\\n\\nIMPORTANT — TOPIC DEDUPLICATION: You MUST pick a DIFFERENT topic than these recent posts. Do NOT repeat subjects or similar themes:\\n' + $('Prep Dedup').first().json.pastTopics + '\\n\\nNow generate completely fresh, unique content on a topic NOT listed above.' } ], max_tokens: 800, temperature: 0.7 }) }}",
-        "options": {}
-      },
-      "id": "c8caa944-12e3-4520-81c5-c4f48f758e3f",
-      "name": "Generate Tech Content",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        1584,
-        688
-      ]
-    },
-    {
-      "parameters": {
-        "jsCode": "// Parse Tech GPT response and standardize output\nconst response = $input.first().json;\nconst config = $('Config').first().json;\n\nlet parsed;\ntry {\n  let content = response.content[0].text;\n  // Strip markdown code fences if present\n  content = content.replace(/^```(?:json)?\\s*/i, '').replace(/\\s*```$/,'').trim();\n  parsed = JSON.parse(content);\n} catch(e) {\n  throw new Error('Failed to parse Tech GPT response: ' + e.message);\n}\n\nreturn [{\n  json: {\n    contentType: 'tech',\n    contentSubtype: parsed.techTopic || 'slicer settings',\n    imagePrompt: parsed.imagePrompt || 'Extreme close-up macro photography of 3D printer nozzle extruding filament, dramatic side lighting, shallow depth of field, technical and precise aesthetic',\n    caption: parsed.caption || '',\n    elevenLabsScript: parsed.elevenLabsScript || parsed.techContent || '',\n    postTitle: parsed.techTitle || '3D Printing Tech Deep Dive',\n    config\n  }\n}];"
-      },
-      "id": "34482bfd-2114-44fc-9dcb-2f93a8130817",
-      "name": "Parse Tech",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        1760,
-        688
-      ]
-    },
-    {
-      "parameters": {
-        "jsCode": "// Merge all branch outputs into unified format for KIE.ai\n// This node receives output from whichever branch ran\nconst input = $input.first().json;\nconst config = input.config;\n\nreturn [{\n  json: {\n    contentType: input.contentType,\n    contentSubtype: input.contentSubtype || '',\n    imagePrompt: input.imagePrompt,\n    caption: input.caption,\n    elevenLabsScript: input.elevenLabsScript,\n    postTitle: input.postTitle || input.contentType,\n    sourceUrl: input.sourceUrl || '',\n    // Pass all config fields forward\n    brand: config.brand,\n    kieModel: config.kieModel,\n    kieAspectRatio: config.kieAspectRatio,\n    kieResolution: config.kieResolution,\n    kieOutputFormat: config.kieOutputFormat,\n    maxPollAttempts: config.maxPollAttempts,\n    telegramChatId: config.telegramChatId,\n    airtableBaseId: config.airtableBaseId,\n    airtableTableId: config.airtableTableId,\n    metaPageId: config.metaPageId,\n    metaIgUserId: config.metaIgUserId,\n    runTimestamp: config.runTimestamp\n  }\n}];"
-      },
-      "id": "35b73065-2b47-4720-9e54-889b93bad310",
-      "name": "Merge Branch Output",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        2448,
-        560
+        1220,
+        380
       ]
     },
     {
@@ -337,8 +216,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        2800,
-        624
+        1420,
+        380
       ]
     },
     {
@@ -348,8 +227,8 @@
       "type": "n8n-nodes-base.wait",
       "typeVersion": 1.1,
       "position": [
-        2960,
-        624
+        1600,
+        380
       ]
     },
     {
@@ -373,21 +252,21 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        3136,
-        624
+        1780,
+        380
       ]
     },
     {
       "parameters": {
-        "jsCode": "const item = $input.first().json;\nconst state = item.data?.state || 'pending';\nconst taskId = $('KIE Create').first().json.data?.taskId || '';\nconst pollCount = (item._pollCount || 0) + 1;\n// Get unified data from Merge Branch Output\nconst cfg = $('Merge Branch Output').first().json;\nif (state === 'success') {\n  let imageUrl = '';\n  try {\n    const resultJson = JSON.parse(item.data.resultJson);\n    imageUrl = resultJson.resultUrls?.[0] || '';\n  } catch(e) { imageUrl = 'PARSE_ERROR: ' + e.message; }\n  return [{ json: { ...cfg, generatedImageUrl: imageUrl, taskId, kieState: 'success', _pollCount: pollCount } }];\n} else if (state === 'fail' || pollCount >= 30) {\n  return [{ json: { ...cfg, taskId, kieState: 'fail', _pollCount: pollCount,\n    reason: state === 'fail' ? 'KIE task failed' : 'Max polls (' + pollCount + ') reached' } }];\n} else {\n  return [{ json: { ...item, ...cfg, taskId, kieState: 'polling', _pollCount: pollCount } }];\n}"
+        "jsCode": "const item = $input.first().json;\nconst state = item.data?.state || 'pending';\nconst taskId = $('KIE Create').first().json.data?.taskId || '';\nconst pollCount = (item._pollCount || 0) + 1;\n// Standardized content + config comes from Parse Content\nconst cfg = $('Parse Content').first().json;\nif (state === 'success') {\n  let imageUrl = '';\n  try {\n    const resultJson = JSON.parse(item.data.resultJson);\n    imageUrl = resultJson.resultUrls?.[0] || '';\n  } catch (e) { imageUrl = 'PARSE_ERROR: ' + e.message; }\n  return [{ json: { ...cfg, generatedImageUrl: imageUrl, taskId, kieState: 'success', _pollCount: pollCount } }];\n} else if (state === 'fail' || pollCount >= 30) {\n  return [{ json: { ...cfg, taskId, kieState: 'fail', _pollCount: pollCount,\n    reason: state === 'fail' ? 'KIE task failed' : 'Max polls (' + pollCount + ') reached' } }];\n} else {\n  return [{ json: { ...item, ...cfg, taskId, kieState: 'polling', _pollCount: pollCount } }];\n}\n"
       },
       "id": "ebb26bdc-3428-403a-aad9-46583acde932",
       "name": "KIE Check",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        3280,
-        624
+        1960,
+        380
       ]
     },
     {
@@ -475,8 +354,8 @@
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3,
       "position": [
-        3424,
-        608
+        2140,
+        380
       ]
     },
     {
@@ -486,14 +365,14 @@
       "type": "n8n-nodes-base.wait",
       "typeVersion": 1.1,
       "position": [
-        3280,
-        784
+        1960,
+        560
       ]
     },
     {
       "parameters": {
         "chatId": "={{ $('Config').first().json.telegramChatId }}",
-        "text": "=❌ Agenius 3D — {{ $('Config').first().json.contentType }} KIE error\n\nReason: {{ $('KIE Check').first().json.reason }}\nTask: {{ $('KIE Check').first().json.taskId }}\nCycle Position: {{ $('Config').first().json.cyclePosition }}",
+        "text": "=❌ {{ $('Config').first().json.brand }} — {{ $('Config').first().json.contentLabel }} image generation failed\n\nReason: {{ $('KIE Check').first().json.reason }}\nTask: {{ $('KIE Check').first().json.taskId }}\nCycle Position: {{ $('Config').first().json.cyclePosition }}",
         "additionalFields": {}
       },
       "id": "401029e5-4d8b-4058-973b-b14179f959d1",
@@ -501,8 +380,8 @@
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
       "position": [
-        3760,
-        720
+        2360,
+        560
       ]
     },
     {
@@ -533,8 +412,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        3104,
-        16
+        2360,
+        220
       ]
     },
     {
@@ -565,11 +444,24 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        3264,
-        16
+        2540,
+        220
       ],
       "retryOnFail": true,
       "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "amount": 3
+      },
+      "id": "e9556bf2-27c3-45c0-98ce-59136d1ee490",
+      "name": "IG Wait",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        2720,
+        220
+      ]
     },
     {
       "parameters": {
@@ -595,356 +487,21 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        3568,
-        16
+        2900,
+        220
       ]
     },
     {
       "parameters": {
-        "amount": 3
-      },
-      "type": "n8n-nodes-base.wait",
-      "typeVersion": 1.1,
-      "position": [
-        3408,
-        16
-      ],
-      "id": "e9556bf2-27c3-45c0-98ce-59136d1ee490",
-      "name": "IG Wait"
-    },
-    {
-      "parameters": {
-        "jsCode": "const cfg = $('KIE Check').first().json;\nconst config = $('Config').first().json;\nconst igId = $('IG Publish').first().json.id || '';\n\nreturn [{\n  json: {\n    'Content Title': (cfg.contentType || 'Content') + ' - ' + new Date().toLocaleDateString(),\n    'Type': cfg.contentType ? cfg.contentType.charAt(0).toUpperCase() + cfg.contentType.slice(1) : 'Photo',\n    'Script/Caption': cfg.caption || '',\n    'Status': 'Published',\n    'Post Date': new Date().toISOString().split('T')[0],\n    'Output Type': 'photo',\n    'Generation Source': 'live_v3',\n    'Image Prompt': cfg.imagePrompt || '',\n    'KIE Task ID': cfg.taskId || '',\n    'IG Post ID': String(igId),\n    'Source Image': cfg.generatedImageUrl || '',\n    'Cycle Position': config.cyclePosition\n  }\n}];\n"
+        "jsCode": "const cfg = $('KIE Check').first().json;\nconst config = $('Config').first().json;\nconst igId = $('IG Publish').first().json.id || '';\n\nreturn [{\n  json: {\n    'Content Title': (cfg.contentLabel || 'Content') + ' - ' + new Date().toLocaleDateString(),\n    'Type': cfg.contentLabel || 'Content',\n    'Script/Caption': cfg.caption || '',\n    'Status': 'Published',\n    'Post Date': new Date().toISOString().split('T')[0],\n    'Output Type': 'photo',\n    'Generation Source': 'live_v3',\n    'Image Prompt': cfg.imagePrompt || '',\n    'KIE Task ID': cfg.taskId || '',\n    'IG Post ID': String(igId),\n    'Source Image': cfg.generatedImageUrl || '',\n    'Cycle Position': config.cyclePosition\n  }\n}];\n"
       },
       "id": "ded582d5-62a1-46e4-8639-2a9c2503acc4",
       "name": "Build Airtable",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        3808,
-        16
-      ]
-    },
-    {
-      "parameters": {
-        "method": "POST",
-        "url": "https://api.anthropic.com/v1/messages",
-        "authentication": "predefinedCredentialType",
-        "nodeCredentialType": "anthropicApi",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "anthropic-version",
-              "value": "2023-06-01"
-            }
-          ]
-        },
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ model: 'claude-haiku-4-5-20251001', system: 'You are a product design content creator for Agenius 3D, a maker-focused 3D printing and AI design brand. You showcase the product design process — from concept sketches to CAD to finished prints. Your voice is technical, detail-oriented, and celebrates the craft of turning ideas into physical objects.', messages: [ { role: 'user', content: 'Generate a product design post about the 3D printing design process. Topics to rotate through: CAD workflow tips, design for printability (wall thickness, overhangs, tolerances), iterating on prototypes, designing snap fits and mechanical joints, organic vs geometric modeling approaches, designing for different materials (PLA vs PETG vs TPU), multi-part assembly design, optimizing for print orientation, functional vs aesthetic design tradeoffs.\\n\\nRespond with EXACTLY this JSON format (no markdown, no extra text):\\n{\\n  \"designTopic\": \"the specific design topic\",\\n  \"designTitle\": \"short catchy title (max 8 words)\",\\n  \"designDescription\": \"2-3 sentences about this design concept and why it matters\",\\n  \"imagePrompt\": \"KIE.ai text-to-image prompt for a product design scene: CAD software on screen with 3D printed prototype next to it, maker workspace, technical blueprints, clean modern desk setup, professional photography, warm lighting, shallow depth of field, 2-4 sentences max\",\\n  \"caption\": \"Instagram caption about this design concept, educational and inspiring tone, 2-3 paragraphs, ends with question to engage followers about their design process, includes hashtags: #agenius3d #3dprinting #3dprinted #maker #makerspace #3ddesign #productdesign #caddesign #prototyping #designprocess #3dmodeling\",\\n  \"elevenLabsScript\": \"15-25 second voiceover script about this design topic, enthusiastic and educational, starts with a hook\"\\n}' + '\\n\\nIMPORTANT — TOPIC DEDUPLICATION: You MUST pick a DIFFERENT topic than these recent posts. Do NOT repeat subjects or similar themes:\\n' + $('Prep Dedup').first().json.pastTopics + '\\n\\nNow generate completely fresh, unique content on a topic NOT listed above.' } ], max_tokens: 800, temperature: 0.85 }) }}",
-        "options": {}
-      },
-      "id": "5b3a6dd5-7416-4eee-a7d8-0102d64ec321",
-      "name": "Generate Design Content",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        1584,
-        512
-      ]
-    },
-    {
-      "parameters": {
-        "jsCode": "// Parse Product Design GPT response and standardize output\nconst response = $input.first().json;\nconst config = $('Config').first().json;\n\nlet parsed;\ntry {\n  let content = response.content[0].text;\n  // Strip markdown code fences if present\n  content = content.replace(/^```(?:json)?\\s*/i, '').replace(/\\s*```$/,'').trim();\n  parsed = JSON.parse(content);\n} catch(e) {\n  throw new Error('Failed to parse Design GPT response: ' + e.message);\n}\n\nreturn [{\n  json: {\n    contentType: 'design',\n    contentSubtype: parsed.designTopic || 'product design',\n    imagePrompt: parsed.imagePrompt || 'Product design workspace with CAD software, 3D printed prototypes, technical drawings, warm lighting, professional photography',\n    caption: parsed.caption || '',\n    elevenLabsScript: parsed.elevenLabsScript || parsed.designDescription || '',\n    postTitle: parsed.designTitle || 'Product Design',\n    config\n  }\n}];"
-      },
-      "id": "f7f9f9af-de4a-4faf-9a5a-0464450b5eb9",
-      "name": "Parse Design",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        1760,
-        512
-      ]
-    },
-    {
-      "parameters": {
-        "method": "POST",
-        "url": "https://api.anthropic.com/v1/messages",
-        "authentication": "predefinedCredentialType",
-        "nodeCredentialType": "anthropicApi",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "anthropic-version",
-              "value": "2023-06-01"
-            }
-          ]
-        },
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ model: 'claude-haiku-4-5-20251001', system: 'You are a 3D art and creative content creator for Agenius 3D. You celebrate the artistic side of 3D printing — sculptures, art installations, creative experiments, generative designs, and the intersection of AI-generated art with physical fabrication. Your voice is creative, visionary, and community-inspiring.', messages: [ { role: 'user', content: 'Generate a 3D art post celebrating the creative and artistic side of 3D printing. Topics to rotate through: abstract sculptures and organic forms, lithophanes and light art, generative/algorithmic designs, miniatures and figurines, architectural art models, vase mode art pieces, multi-color artistic prints, 3D printed jewelry and wearable art, wall art and relief sculptures, kinetic art and moving sculptures, AI-generated designs brought to life.\\n\\nRespond with EXACTLY this JSON format (no markdown, no extra text):\\n{\\n  \"artTopic\": \"the specific art topic\",\\n  \"artTitle\": \"short catchy title (max 8 words)\",\\n  \"artDescription\": \"2-3 sentences about this art form and what makes it special\",\\n  \"imagePrompt\": \"KIE.ai text-to-image prompt for a stunning 3D printed art piece: gallery-quality presentation, dramatic lighting, artistic composition, vibrant or striking aesthetic, professional art photography, shallow depth of field, 2-4 sentences max\",\\n  \"caption\": \"Instagram caption celebrating this art form, creative and inspiring tone, 2-3 paragraphs, ends with CTA to share their 3D printed art or tag us, includes hashtags: #agenius3d #3dprinting #3dprinted #maker #makerspace #3ddesign #3dart #digitalart #generativeart #3dprintedart #makersmovement\",\\n  \"elevenLabsScript\": \"15-25 second voiceover script about this art topic, passionate and visually descriptive, starts with a hook\"\\n}' + '\\n\\nIMPORTANT — TOPIC DEDUPLICATION: You MUST pick a DIFFERENT topic than these recent posts. Do NOT repeat subjects or similar themes:\\n' + $('Prep Dedup').first().json.pastTopics + '\\n\\nNow generate completely fresh, unique content on a topic NOT listed above.' } ], max_tokens: 800, temperature: 0.9 }) }}",
-        "options": {}
-      },
-      "id": "57c5d317-923c-4571-9219-ea76f686fbd7",
-      "name": "Generate Art Content",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        1584,
-        864
-      ]
-    },
-    {
-      "parameters": {
-        "jsCode": "// Parse Art GPT response and standardize output\nconst response = $input.first().json;\nconst config = $('Config').first().json;\n\nlet parsed;\ntry {\n  let content = response.content[0].text;\n  // Strip markdown code fences if present\n  content = content.replace(/^```(?:json)?\\s*/i, '').replace(/\\s*```$/,'').trim();\n  parsed = JSON.parse(content);\n} catch(e) {\n  throw new Error('Failed to parse Art GPT response: ' + e.message);\n}\n\nreturn [{\n  json: {\n    contentType: 'art',\n    contentSubtype: parsed.artTopic || '3d art',\n    imagePrompt: parsed.imagePrompt || 'Stunning 3D printed art sculpture with dramatic gallery lighting, artistic composition, vibrant colors, professional photography',\n    caption: parsed.caption || '',\n    elevenLabsScript: parsed.elevenLabsScript || parsed.artDescription || '',\n    postTitle: parsed.artTitle || '3D Printed Art',\n    config\n  }\n}];"
-      },
-      "id": "12f72f0e-6ba1-4942-accc-0f92411aa0c2",
-      "name": "Parse Art",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        1760,
-        864
-      ]
-    },
-    {
-      "parameters": {
-        "content": "# Autonomous Social Media Pipeline v3\n\n**Grid-aware posting** with 12-post IG cycle:\nRow 1: Models x3 | Row 2: Tip/Tech/Tip | Row 3: Art x3 | Row 4: Design x3\n\n**Dedup**: Fetches past posts from Airtable before generating to avoid topic repetition.\n\n**Flow**: Trigger → Fetch Cycle Pos → Config → Fetch Past Topics → Prep Dedup → Route → Generate (Claude Haiku 4.5) → Parse → Merge → KIE Image Gen → FB + IG Publish → Log to Airtable → Telegram Notification",
-        "height": 300,
-        "width": 800
-      },
-      "id": "d9843795-5f35-4427-a95c-5fc623575e0c",
-      "name": "Header Note",
-      "type": "n8n-nodes-base.stickyNote",
-      "typeVersion": 1,
-      "position": [
-        1344,
-        -576
-      ]
-    },
-    {
-      "parameters": {
-        "content": "## ⏰ Step 1: Schedule & Config\n\nThe pipeline runs automatically at **10am and 3pm ET** every day.\n\nA **rotation matrix** picks the content type for each time slot — cycling through Tips, Models, Design, Tech, and Art across the week so followers get a fresh mix.\n\nAll settings (API keys, brand voice, image specs) live in one Config node — change once, updates everywhere.",
-        "height": 896,
-        "width": 676
-      },
-      "id": "856faf94-c1a1-4cab-8bae-c981fbcc0e76",
-      "name": "Section 1 - Triggers",
-      "type": "n8n-nodes-base.stickyNote",
-      "typeVersion": 1,
-      "position": [
-        560,
-        160
-      ]
-    },
-    {
-      "parameters": {
-        "content": "## ✍️ Step 2: AI Content Generation\n\n**5 content branches**, each with its own AI personality:\n\n🔧 **Tips** — Actionable 3D printing advice\n🎨 **Models** — Model showcases & maker inspiration\n📐 **Design** — Product design process & CAD workflow\n⚙️ **Tech** — Deep dives into printer settings & materials\n🖼️ **Art** — Creative & artistic 3D printing\n\nEach branch sends a tailored prompt to **Claude Haiku 4.5** and gets back:\n- An Instagram-ready caption with hashtags\n- A custom image generation prompt\n- A voiceover script (for future video content)\n\nThe Parse nodes validate the AI response and standardize the output format.",
-        "height": 1300,
-        "width": 980,
-        "color": 5
-      },
-      "id": "555f1d69-5cc7-435e-a19f-3ce601d0720c",
-      "name": "Section 2 - AI Content",
-      "type": "n8n-nodes-base.stickyNote",
-      "typeVersion": 1,
-      "position": [
-        1248,
-        -256
-      ]
-    },
-    {
-      "parameters": {
-        "content": "## 🔀 Step 3: Unified Pipeline\n\nAll 5 branches merge into a **single publish pipeline**.\n\nThis is the key architectural decision — instead of duplicating the image gen → preview → publish → log chain 5 times, every branch outputs a standard format and feeds into one shared pipeline.\n\n**Result:** 40 nodes instead of 100+. Easier to maintain, debug, and extend.",
-        "height": 636,
-        "width": 440,
-        "color": 3
-      },
-      "id": "88ca8da8-8c17-421b-a754-91dcc8f2a63d",
-      "name": "Section 3 - Merge",
-      "type": "n8n-nodes-base.stickyNote",
-      "typeVersion": 1,
-      "position": [
-        2256,
-        256
-      ]
-    },
-    {
-      "parameters": {
-        "content": "## 🎨 Step 4: AI Image Generation\n\nThe image prompt from Step 2 is sent to **KIE.ai** to generate a unique image.\n\n**How it works:**\n1. Submit the prompt → get a task ID\n2. Wait & poll every 5 seconds\n3. Check status — success, fail, or keep polling\n4. Route: success → publish, fail → alert via Telegram\n\nThe polling loop has a **30-attempt max** to prevent infinite loops. If generation fails, an alert is sent via Telegram with the error details.",
-        "height": 640,
-        "width": 912,
-        "color": 6
-      },
-      "id": "5f1ae1b6-93d3-4afc-b248-3a3b18b66ea1",
-      "name": "Section 4 - Image Gen",
-      "type": "n8n-nodes-base.stickyNote",
-      "typeVersion": 1,
-      "position": [
-        2704,
-        256
-      ]
-    },
-    {
-      "parameters": {
-        "content": "## 📱 Step 5: Publish\n\nThe automated publish chain fires:\n\n1. **Facebook** — Photo post with caption via Graph API\n2. **Instagram Container** — Create media container\n3. **Wait** — Brief pause for IG to process the image\n4. **Instagram Publish** — Push the container live\n\nEach publish node has **retry-on-fail** built in — if Meta's API hiccups, it waits and tries again automatically.",
-        "height": 588,
-        "width": 692
-      },
-      "id": "ad5780ff-48b5-4bf8-97cb-499062a244c5",
-      "name": "Section 5 - Publish",
-      "type": "n8n-nodes-base.stickyNote",
-      "typeVersion": 1,
-      "position": [
-        3024,
-        -352
-      ]
-    },
-    {
-      "parameters": {
-        "content": "## 📊 Step 6: Content Database\n\nEvery published post is logged to **Airtable** with full metadata:\n\n- Content type, caption, image URL\n- Post IDs (FB + IG) for tracking\n- The AI image prompt used\n- KIE task ID for debugging\n- Timestamp and generation source\n\nThis creates a **searchable content library** — track what's been posted, monitor performance, and feed data back into the AI for better prompts over time.",
-        "height": 592,
-        "width": 440,
-        "color": 6
-      },
-      "id": "5ab5f12f-db7f-42cd-b2df-01802f9cb46b",
-      "name": "Section 6 - Logging",
-      "type": "n8n-nodes-base.stickyNote",
-      "typeVersion": 1,
-      "position": [
-        3728,
-        -352
-      ]
-    },
-    {
-      "parameters": {
-        "content": "## 📈 What This Achieves\n\n**10 AI-generated posts per week** across Instagram & Facebook — zero manual effort.\n\n- 🕐 ~2 minutes from trigger to published post\n- 🧠 AI writes unique captions tailored to each content type\n- 🎨 AI generates original images (no stock photos)\n- 📊 Every post tracked in Airtable for analytics\n- 🔄 Self-healing with retry logic and error alerts\n\n*Built by Agenius AI Labs*",
-        "height": 484,
-        "width": 748,
-        "color": 5
-      },
-      "id": "3637a1ee-7647-4e50-a82f-97e982bb3ac2",
-      "name": "Footer Note",
-      "type": "n8n-nodes-base.stickyNote",
-      "typeVersion": 1,
-      "position": [
-        2256,
-        -256
-      ]
-    },
-    {
-      "parameters": {
-        "url": "https://api.airtable.com/v0/YOUR_AIRTABLE_BASE_ID/YOUR_AIRTABLE_TABLE_ID",
-        "sendQuery": true,
-        "queryParameters": {
-          "parameters": [
-            {
-              "name": "fields[]",
-              "value": "Cycle Position"
-            },
-            {
-              "name": "sort[0][field]",
-              "value": "Post Date"
-            },
-            {
-              "name": "sort[0][direction]",
-              "value": "desc"
-            },
-            {
-              "name": "maxRecords",
-              "value": "1"
-            },
-            {
-              "name": "filterByFormula",
-              "value": "NOT({Cycle Position}='')"
-            }
-          ]
-        },
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Authorization",
-              "value": "=Bearer {{ $vars.AIRTABLE_PAT }}"
-            }
-          ]
-        },
-        "options": {}
-      },
-      "id": "d4c384c4-3d99-4a55-be52-1c5ee184d982",
-      "name": "Fetch Last Record",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        704,
-        512
-      ]
-    },
-    {
-      "parameters": {
-        "url": "https://api.airtable.com/v0/YOUR_AIRTABLE_BASE_ID/YOUR_AIRTABLE_TABLE_ID",
-        "sendQuery": true,
-        "queryParameters": {
-          "parameters": [
-            {
-              "name": "fields[]",
-              "value": "Content Title"
-            },
-            {
-              "name": "fields[]",
-              "value": "Image Prompt"
-            },
-            {
-              "name": "sort[0][field]",
-              "value": "Post Date"
-            },
-            {
-              "name": "sort[0][direction]",
-              "value": "desc"
-            },
-            {
-              "name": "maxRecords",
-              "value": "15"
-            },
-            {
-              "name": "filterByFormula",
-              "value": "={{ 'AND({Type}=\\'' + $json.contentType.charAt(0).toUpperCase() + $json.contentType.slice(1) + '\\',NOT({Status}=\\'\\'))' }}"
-            }
-          ]
-        },
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Authorization",
-              "value": "=Bearer {{ $vars.AIRTABLE_PAT }}"
-            }
-          ]
-        },
-        "options": {}
-      },
-      "id": "a2fa4fa5-b506-43e5-b5ed-b7b327dccf6a",
-      "name": "Fetch Past Topics",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        1264,
-        512
-      ]
-    },
-    {
-      "parameters": {
-        "jsCode": "// Build dedup context from past Airtable records\nconst records = $input.first().json.records || [];\nconst config = $('Config').first().json;\n\nconst pastTopics = records.map(r => {\n  const title = r.fields['Content Title'] || '';\n  const prompt = (r.fields['Image Prompt'] || '').substring(0, 120);\n  return `- ${title} (prompt: ${prompt}...)`;\n}).join('\\n');\n\nreturn [{\n  json: {\n    ...config,\n    pastTopics: pastTopics || 'No previous posts found — this is the first post of this type.',\n    pastTopicCount: records.length\n  }\n}];\n"
-      },
-      "id": "13f5f112-2065-45f0-955c-6fd6545bcb51",
-      "name": "Prep Dedup",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        1408,
-        512
+        3080,
+        220
       ]
     },
     {
@@ -974,14 +531,14 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        3984,
-        16
+        3260,
+        220
       ]
     },
     {
       "parameters": {
         "chatId": "={{ $('Config').first().json.telegramChatId }}",
-        "text": "=✅ Agenius 3D — {{ $('Config').first().json.contentType }} posted!\n\nCycle pos: {{ $('Config').first().json.cyclePosition }}/11\nTitle: {{ $('Build Airtable').first().json['Content Title'] }}",
+        "text": "=✅ {{ $('Config').first().json.brand }} — {{ $('Config').first().json.contentLabel }} posted!\n\nCycle pos: {{ $('Config').first().json.cyclePosition }}\nTitle: {{ $('Build Airtable').first().json['Content Title'] }}",
         "additionalFields": {}
       },
       "id": "231fb73c-3e72-482e-958f-b01ab08bc9d0",
@@ -989,8 +546,117 @@
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
       "position": [
-        4256,
-        16
+        3440,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "content": "# Autonomous Social Media Pipeline v3\n\nA scheduled content engine for **any** vertical. Each run picks the next slot in a 12-post Instagram grid cycle, writes a caption + image prompt with an LLM, generates an original image, publishes to Facebook + Instagram, logs to Airtable, and notifies on Telegram.\n\n**Adapt it in one place:** the **Config** node holds your `vertical` and five `topics`. Nothing else is industry-specific.",
+        "height": 160,
+        "width": 1000
+      },
+      "id": "note-header",
+      "name": "Header Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        300,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## ⚙️ Step 1: Configure (edit this)\n\nThe **Config** node is the only node you edit:\n\n- `vertical` — your industry / niche\n- `brand`, `brandVoice`\n- `topics` — your **5** content topics (label, angle, subtopics, hashtags)\n- `cycle` — the 12-slot posting pattern referencing your topic keys\n\nThe schedule advances one slot each run, looking up the last position from Airtable.",
+        "height": 300,
+        "width": 520
+      },
+      "id": "note-config",
+      "name": "Step 1 - Configure",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        300,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## ✍️ Step 2: Generate (dynamic)\n\n**Prep Prompt** builds the system + user prompt from the selected topic. **Generate Content** calls the LLM once and **Parse Content** standardizes the result:\n\n- Instagram caption with hashtags\n- an image-generation prompt\n- a voiceover script (for future video)\n\nOne generator, driven entirely by Config — no per-topic branches to maintain.",
+        "height": 300,
+        "width": 560,
+        "color": 5
+      },
+      "id": "note-generate",
+      "name": "Step 2 - Generate",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        840,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 🎨 Step 3: Image Generation\n\nThe image prompt is sent to **KIE.ai**:\n1. Submit → get a task ID\n2. Wait & poll\n3. Check status — success, fail, or keep polling\n4. Route: success → publish, fail → Telegram alert\n\nThe poll loop caps at **30 attempts** so it never hangs.",
+        "height": 300,
+        "width": 900,
+        "color": 6
+      },
+      "id": "note-image",
+      "name": "Step 3 - Image Gen",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1420,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 📱 Step 4: Publish\n\n1. **Facebook** photo post via Graph API\n2. **Instagram** container → wait → publish\n\nIG Container has retry-on-fail for Meta API hiccups.",
+        "height": 180,
+        "width": 760
+      },
+      "id": "note-publish",
+      "name": "Step 4 - Publish",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        2320,
+        20
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 📊 Step 5: Log & Notify\n\nEvery post is logged to **Airtable** (caption, image URL, post IDs, prompt, cycle position) — a searchable content library and the source of truth for the cycle. Then a **Telegram** success ping.",
+        "height": 180,
+        "width": 560,
+        "color": 6
+      },
+      "id": "note-logging",
+      "name": "Step 5 - Logging",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        3120,
+        20
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 📈 What This Achieves\n\n**Hands-off scheduled posting** across Instagram & Facebook for whatever vertical you configure.\n\n- 🧠 LLM writes unique, on-brand captions per topic\n- 🎨 Original AI images, no stock photos\n- 🔁 12-post grid cycle keeps the feed varied\n- 📊 Every post tracked in Airtable, with topic dedup\n\n*Built by Agenius AI Labs*",
+        "height": 180,
+        "width": 1000,
+        "color": 5
+      },
+      "id": "note-footer",
+      "name": "Footer Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        300,
+        -180
       ]
     }
   ],
@@ -1043,174 +709,36 @@
       "main": [
         [
           {
-            "node": "Prep Dedup",
+            "node": "Prep Prompt",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Prep Dedup": {
+    "Prep Prompt": {
       "main": [
         [
           {
-            "node": "Route by Content Type",
+            "node": "Generate Content",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Route by Content Type": {
+    "Generate Content": {
       "main": [
         [
           {
-            "node": "Generate Tips Content",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Generate Models Content",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Generate Design Content",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Generate Tech Content",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Generate Art Content",
+            "node": "Parse Content",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Generate Tips Content": {
-      "main": [
-        [
-          {
-            "node": "Parse Tips",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Generate Models Content": {
-      "main": [
-        [
-          {
-            "node": "Parse Models",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Generate Design Content": {
-      "main": [
-        [
-          {
-            "node": "Parse Design",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Generate Tech Content": {
-      "main": [
-        [
-          {
-            "node": "Parse Tech",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Generate Art Content": {
-      "main": [
-        [
-          {
-            "node": "Parse Art",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Parse Tips": {
-      "main": [
-        [
-          {
-            "node": "Merge Branch Output",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Parse Models": {
-      "main": [
-        [
-          {
-            "node": "Merge Branch Output",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Parse Design": {
-      "main": [
-        [
-          {
-            "node": "Merge Branch Output",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Parse Tech": {
-      "main": [
-        [
-          {
-            "node": "Merge Branch Output",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Parse Art": {
-      "main": [
-        [
-          {
-            "node": "Merge Branch Output",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Merge Branch Output": {
+    "Parse Content": {
       "main": [
         [
           {
