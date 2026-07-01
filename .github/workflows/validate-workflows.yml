@@ -3,12 +3,12 @@ name: Validate workflows
 on:
   push:
     paths:
-      - 'workflows/**/workflow.json'
+      - 'workflows/**/*.json'
       - 'scripts/validate-workflows.mjs'
       - '.github/workflows/validate-workflows.yml'
   pull_request:
     paths:
-      - 'workflows/**/workflow.json'
+      - 'workflows/**/*.json'
       - 'scripts/validate-workflows.mjs'
       - '.github/workflows/validate-workflows.yml'
 
