@@ -1,0 +1,478 @@
+{
+  "name": "AI Product Photography (nano-banana-2) — n8n Form",
+  "nodes": [
+    {
+      "parameters": {
+        "formTitle": "AI Product Photo Studio",
+        "formDescription": "Turn a plain product photo into a styled studio shot. Upload a photo, pick a look, and describe the scene.",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Pick a Photo",
+              "fieldType": "file",
+              "acceptFileTypes": ".jpg,.jpeg,.png,.webp",
+              "multipleFiles": false,
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Photo Type",
+              "fieldType": "dropdown",
+              "fieldOptions": {
+                "values": [
+                  { "option": "Flatlay" },
+                  { "option": "Hero Image" },
+                  { "option": "Ecommerce" },
+                  { "option": "Banner" }
+                ]
+              },
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Aspect Ratio",
+              "fieldType": "dropdown",
+              "fieldOptions": {
+                "values": [
+                  { "option": "1:1" },
+                  { "option": "9:16" },
+                  { "option": "16:9" },
+                  { "option": "4:5" },
+                  { "option": "5:4" },
+                  { "option": "21:9" }
+                ]
+              },
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Describe the Scene",
+              "fieldType": "textarea",
+              "placeholder": "e.g. Candle on a marble countertop with warm morning light and soft shadows",
+              "requiredField": false
+            }
+          ]
+        },
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "form-trigger-001",
+      "name": "On form submission",
+      "type": "n8n-nodes-base.formTrigger",
+      "position": [-60, 220],
+      "webhookId": "ai-product-photo-form",
+      "typeVersion": 2.5
+    },
+    {
+      "parameters": {
+        "jsCode": "// Convert the uploaded photo to a base64 data URL for the KIE.AI upload step.\nconst item = $input.first();\nconst binKeys = Object.keys(item.binary || {});\nif (!binKeys.length) {\n  throw new Error('No file received. Make sure the \"Pick a Photo\" field has an image.');\n}\nconst key = binKeys[0];\nconst meta = item.binary[key];\nconst buffer = await this.helpers.getBinaryDataBuffer(0, key);\nconst mime = meta.mimeType || 'image/png';\nconst ext = (meta.fileExtension || 'png').replace('.', '');\nreturn [{\n  json: {\n    base64Data: `data:${mime};base64,${buffer.toString('base64')}`,\n    fileName: `input-${Date.now()}.${ext}`,\n    photo_type: item.json['Photo Type'] || 'Custom (use prompt only)',\n    aspect_ratio: item.json['Aspect Ratio'] || '1:1',\n    scene: item.json['Describe the Scene'] || ''\n  }\n}];"
+      },
+      "id": "prep-upload-001",
+      "name": "Prepare Upload",
+      "type": "n8n-nodes-base.code",
+      "position": [160, 220],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.kie.ai/api/file-base64-upload",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ base64Data: $json.base64Data, uploadPath: 'product-photos/input', fileName: $json.fileName }) }}",
+        "options": {}
+      },
+      "id": "upload-input-001",
+      "name": "Upload Input to KIE",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [380, 220],
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "fb-image-url",
+              "name": "Image URL",
+              "type": "string",
+              "value": "={{ $('Upload Input to KIE').item.json.data.downloadUrl }}"
+            },
+            {
+              "id": "fb-prompt",
+              "name": "Prompt",
+              "type": "string",
+              "value": "={{ $('Prepare Upload').item.json.scene }}"
+            },
+            {
+              "id": "fb-scene",
+              "name": "Scene Type",
+              "type": "string",
+              "value": "={{ $('Prepare Upload').item.json.photo_type || 'Custom (use prompt only)' }}"
+            },
+            {
+              "id": "fb-ratio",
+              "name": "Aspect Ratio",
+              "type": "string",
+              "value": "={{ $('Prepare Upload').item.json.aspect_ratio || '1:1' }}"
+            },
+            {
+              "id": "fb-res",
+              "name": "Resolution",
+              "type": "string",
+              "value": "1K"
+            },
+            {
+              "id": "fb-fmt",
+              "name": "Output Format",
+              "type": "string",
+              "value": "png"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "flatten-body-001",
+      "name": "Flatten Body",
+      "type": "n8n-nodes-base.set",
+      "position": [600, 220],
+      "typeVersion": 3.4
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Input Image URL: {{ $json['Image URL'] }}\nBasic Prompt: {{ $json['Prompt'] }}\nScene Type: {{ $json['Scene Type'] || 'Custom (use prompt only)' }}\nAspect Ratio: {{ $json['Aspect Ratio'] || '1:1' }}",
+        "options": {
+          "systemMessage": "You are an expert AI product photography prompt engineer. You turn a short concept into a detailed, visually rich prompt that produces realistic, professional product and lifestyle photography.\n\nYour output is used with an image-to-image model that takes an existing product photo and re-renders it in a new scene. The source image is already provided, so your prompt describes the TARGET scene, lighting, composition, and styling, not the product itself.\n\nIf a Photo Type is provided, incorporate its characteristics:\n\n- Flatlay: Overhead, bird's-eye camera angle. Styled arrangement on a textured surface (marble, wood, linen). Complementary props that suit the product. Soft natural window light with gentle shadows. Clean, editorial, social-ready.\n\n- Hero Image: Eye-catching composition with strong visual impact. Slight depth of field with a soft bokeh background. Dynamic 3/4 angle. Natural but vibrant color, high contrast, editorial feel.\n\n- Ecommerce: Clean, pure white (#FFFFFF) seamless background. Soft, even studio lighting with minimal shadows. Product centered and well lit. Catalog quality. No props, no distractions.\n\n- Banner: Wide, cinematic composition with the product offset to one side and generous negative space for text. Balanced ambient lighting and a cohesive color story. Designed for a website hero or banner.\n\n- Custom (use prompt only): Follow the user's scene description exactly. Add technical photography detail (lighting, lens, composition) but do not impose a scene concept.\n\nRules:\n1. Describe the TARGET scene, not the source product (the model already has the product).\n2. Always include: surface/background material and color, lighting setup (direction, quality, color temperature), camera angle and framing, mood, and any supporting props.\n3. Keep the product as the hero. Props support, never compete.\n4. Use professional photography language (key light, fill light, rim light, f/2.8, 85mm equivalent, etc.).\n5. Be specific about materials and textures (e.g. warm-toned white oak tabletop, not wooden surface).\n6. Output ONLY the final prompt. No commentary, no explanation, no formatting.\n7. Keep prompts to 2 to 4 sentences. Dense and specific, not verbose.\n8. Never include text, watermarks, logos, or brand names in the prompt.\n9. Never change the product itself (its shape, color, materials, or label). Only change the scene, lighting, and styling around it."
+        }
+      },
+      "id": "ai-agent-001",
+      "name": "AI Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "position": [820, 220],
+      "typeVersion": 3.1
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4.1-mini",
+          "cachedResultName": "gpt-4.1-mini"
+        },
+        "responsesApiEnabled": false,
+        "options": {}
+      },
+      "id": "openai-model-001",
+      "name": "OpenAI Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "position": [820, 420],
+      "typeVersion": 1.3
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "clean-prompt",
+              "name": "clean_prompt",
+              "type": "string",
+              "value": "={{ $json.output.replace(/\\r?\\n|\\r/g, ' ').replace(/\"/g, '') }}"
+            },
+            {
+              "id": "image-url",
+              "name": "image_url",
+              "type": "string",
+              "value": "={{ $('Flatten Body').item.json['Image URL'] }}"
+            },
+            {
+              "id": "aspect-ratio",
+              "name": "aspect_ratio",
+              "type": "string",
+              "value": "={{ $('Flatten Body').item.json['Aspect Ratio'] || '1:1' }}"
+            },
+            {
+              "id": "resolution",
+              "name": "resolution",
+              "type": "string",
+              "value": "={{ $('Flatten Body').item.json['Resolution'] || '1K' }}"
+            },
+            {
+              "id": "output-format",
+              "name": "output_format",
+              "type": "string",
+              "value": "={{ $('Flatten Body').item.json['Output Format'] || 'png' }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "data-cleanup-001",
+      "name": "Data Cleanup",
+      "type": "n8n-nodes-base.set",
+      "position": [1060, 220],
+      "typeVersion": 3.4
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.kie.ai/api/v1/jobs/createTask",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: 'nano-banana-2', input: { prompt: $json.clean_prompt, image_input: [$json.image_url], aspect_ratio: $json.aspect_ratio, resolution: $json.resolution, output_format: $json.output_format } }) }}",
+        "options": {}
+      },
+      "id": "create-task-001",
+      "name": "Create Task",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [1280, 220],
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "amount": 5,
+        "unit": "seconds"
+      },
+      "id": "wait-001",
+      "name": "Wait",
+      "type": "n8n-nodes-base.wait",
+      "position": [1480, 220],
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "url": "https://api.kie.ai/api/v1/jobs/recordInfo",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "taskId",
+              "value": "={{ $('Create Task').item.json.data.taskId }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "poll-status-001",
+      "name": "Poll Task Status",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [1680, 220],
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "jsCode": "// Check task state and route success / fail / keep polling.\nconst state = $input.first().json.data?.state || 'unknown';\nconst taskId = $('Create Task').first().json.data?.taskId || '';\n\nif (state === 'success') {\n  let imageUrl = '';\n  try {\n    const resultJson = JSON.parse($input.first().json.data.resultJson);\n    imageUrl = resultJson.resultUrls[0] || '';\n  } catch (e) {\n    imageUrl = 'PARSE_ERROR: ' + e.message;\n  }\n  return [{\n    json: {\n      status: 'success',\n      image_url: imageUrl,\n      prompt_used: $('Data Cleanup').first().json.clean_prompt,\n      source_image: $('Data Cleanup').first().json.image_url,\n      model: 'nano-banana-2',\n      taskId\n    }\n  }];\n} else if (state === 'fail') {\n  return [{\n    json: {\n      status: 'failed',\n      reason: 'Task failed on KIE.AI',\n      taskId,\n      state\n    }\n  }];\n} else {\n  // Still processing - pass through for the retry loop\n  return [{\n    json: {\n      ...($input.first().json),\n      _status: 'polling',\n      _state: state\n    }\n  }];\n}"
+      },
+      "id": "check-result-001",
+      "name": "Check Result",
+      "type": "n8n-nodes-base.code",
+      "position": [1880, 220],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "cond-success",
+              "operator": { "type": "string", "operation": "equals" },
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "success"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "if-success-001",
+      "name": "Success?",
+      "type": "n8n-nodes-base.if",
+      "position": [2080, 220],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "cond-failed",
+              "operator": { "type": "string", "operation": "equals" },
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "failed"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "if-failed-001",
+      "name": "Failed?",
+      "type": "n8n-nodes-base.if",
+      "position": [2080, 400],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            { "id": "out-url", "name": "image_url", "type": "string", "value": "={{ $json.image_url }}" },
+            { "id": "out-prompt", "name": "prompt_used", "type": "string", "value": "={{ $json.prompt_used }}" },
+            { "id": "out-source", "name": "source_image", "type": "string", "value": "={{ $json.source_image }}" },
+            { "id": "out-model", "name": "model", "type": "string", "value": "nano-banana-2" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "generated-image-001",
+      "name": "Generated Image",
+      "type": "n8n-nodes-base.set",
+      "position": [2300, 100],
+      "typeVersion": 3.4
+    },
+    {
+      "parameters": {
+        "operation": "completion",
+        "respondWith": "showText",
+        "responseText": "=<div style=\"text-align:center;font-family:sans-serif\"><h2>Your product photo is ready</h2><img src=\"{{ $json.image_url }}\" style=\"max-width:100%;border-radius:12px\" /><p><a href=\"{{ $json.image_url }}\" target=\"_blank\" rel=\"noopener\">Open full size</a></p><p style=\"color:#888;font-size:13px\">Tip: this link is temporary, save the image now.</p></div>",
+        "options": {}
+      },
+      "id": "show-result-001",
+      "name": "Show Result",
+      "type": "n8n-nodes-base.form",
+      "position": [2520, 100],
+      "webhookId": "ai-product-photo-result",
+      "typeVersion": 2.5
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            { "id": "err-status", "name": "error", "type": "string", "value": "={{ $json.reason || 'Image generation failed' }}" },
+            { "id": "err-task", "name": "taskId", "type": "string", "value": "={{ $json.taskId }}" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "generation-failed-001",
+      "name": "Generation Failed",
+      "type": "n8n-nodes-base.set",
+      "position": [2300, 440],
+      "typeVersion": 3.4
+    },
+    {
+      "parameters": {
+        "operation": "completion",
+        "respondWith": "text",
+        "completionTitle": "Generation failed",
+        "completionMessage": "={{ $json.error }}",
+        "options": {}
+      },
+      "id": "show-error-001",
+      "name": "Show Error",
+      "type": "n8n-nodes-base.form",
+      "position": [2520, 440],
+      "webhookId": "ai-product-photo-error",
+      "typeVersion": 2.5
+    },
+    {
+      "parameters": {
+        "amount": 5,
+        "unit": "seconds"
+      },
+      "id": "wait-retry-001",
+      "name": "Wait (Retry)",
+      "type": "n8n-nodes-base.wait",
+      "position": [2080, 560],
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "content": "## AI Product Photo Studio (n8n Form)\n**Model:** KIE.AI nano-banana-2 (image to image)\n\n### Setup\n1. Add an **HTTP Bearer Auth** credential with your KIE.AI API key and select it on the 3 KIE.AI HTTP nodes (Upload Input to KIE, Create Task, Poll Task Status).\n2. Add an **OpenAI** credential and select it on the OpenAI Chat Model node.\n3. Activate the workflow and open the form URL from the trigger.\n\n### How it works\nForm submission -> upload photo to KIE.AI -> AI enhances the prompt -> nano-banana-2 generates the image -> poll until done -> show the result on the form.",
+        "height": 360,
+        "width": 460,
+        "color": 4
+      },
+      "id": "sticky-setup-001",
+      "name": "Sticky Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [-80, -200],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "content": "### Prompt Enhancement\nThe agent turns the Photo Type + scene description into a detailed, model-ready photography prompt. It only describes the scene around the product, never the product itself.",
+        "height": 300,
+        "width": 360,
+        "color": 5
+      },
+      "id": "sticky-prompt-001",
+      "name": "Sticky Note1",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [780, -120],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "content": "### Generate + Poll\nCreates the task on KIE.AI, then polls every 5s until the image is ready or fails.",
+        "height": 300,
+        "width": 720,
+        "color": 5
+      },
+      "id": "sticky-api-001",
+      "name": "Sticky Note2",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [1260, -120],
+      "typeVersion": 1
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "On form submission": { "main": [[{ "node": "Prepare Upload", "type": "main", "index": 0 }]] },
+    "Prepare Upload": { "main": [[{ "node": "Upload Input to KIE", "type": "main", "index": 0 }]] },
+    "Upload Input to KIE": { "main": [[{ "node": "Flatten Body", "type": "main", "index": 0 }]] },
+    "Flatten Body": { "main": [[{ "node": "AI Agent", "type": "main", "index": 0 }]] },
+    "OpenAI Chat Model": { "ai_languageModel": [[{ "node": "AI Agent", "type": "ai_languageModel", "index": 0 }]] },
+    "AI Agent": { "main": [[{ "node": "Data Cleanup", "type": "main", "index": 0 }]] },
+    "Data Cleanup": { "main": [[{ "node": "Create Task", "type": "main", "index": 0 }]] },
+    "Create Task": { "main": [[{ "node": "Wait", "type": "main", "index": 0 }]] },
+    "Wait": { "main": [[{ "node": "Poll Task Status", "type": "main", "index": 0 }]] },
+    "Poll Task Status": { "main": [[{ "node": "Check Result", "type": "main", "index": 0 }]] },
+    "Check Result": { "main": [[{ "node": "Success?", "type": "main", "index": 0 }]] },
+    "Success?": {
+      "main": [
+        [{ "node": "Generated Image", "type": "main", "index": 0 }],
+        [{ "node": "Failed?", "type": "main", "index": 0 }]
+      ]
+    },
+    "Failed?": {
+      "main": [
+        [{ "node": "Generation Failed", "type": "main", "index": 0 }],
+        [{ "node": "Wait (Retry)", "type": "main", "index": 0 }]
+      ]
+    },
+    "Generated Image": { "main": [[{ "node": "Show Result", "type": "main", "index": 0 }]] },
+    "Generation Failed": { "main": [[{ "node": "Show Error", "type": "main", "index": 0 }]] },
+    "Wait (Retry)": { "main": [[{ "node": "Poll Task Status", "type": "main", "index": 0 }]] }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {},
+  "tags": []
+}

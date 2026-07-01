@@ -21,7 +21,7 @@ async function findWorkflowFiles(dir) {
   for (const e of entries) {
     const p = join(dir, e.name);
     if (e.isDirectory()) out.push(...(await findWorkflowFiles(p)));
-    else if (e.name === 'workflow.json') out.push(p);
+    else if (e.name.endsWith('.json')) out.push(p);
   }
   return out;
 }
@@ -110,11 +110,11 @@ function validate(wf) {
 
 const files = await findWorkflowFiles(ROOT);
 if (files.length === 0) {
-  console.error('No workflow.json files found under workflows/');
+  console.error('No JSON files found under workflows/');
   process.exit(1);
 }
 
-console.log(`Validating ${files.length} workflow file(s)...\n`);
+console.log(`Scanning ${files.length} JSON file(s) under ${ROOT}/...\n`);
 for (const file of files) {
   console.log(file);
   let raw;
@@ -130,6 +130,13 @@ for (const file of files) {
     wf = JSON.parse(raw);
   } catch (e) {
     err(`invalid JSON: ${e.message}`);
+    console.log('');
+    continue;
+  }
+  // Only structurally validate files that are actually n8n workflow exports.
+  // Other JSON under workflows/ (sample data, config maps) is parsed but skipped.
+  if (!wf || typeof wf !== 'object' || !Array.isArray(wf.nodes)) {
+    console.log('  – skipped (not an n8n workflow export)');
     console.log('');
     continue;
   }
