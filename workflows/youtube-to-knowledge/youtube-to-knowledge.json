@@ -4,26 +4,26 @@
     {
       "parameters": {
         "formTitle": "YouTube → Knowledge",
-        "formDescription": "Paste a YouTube link. We pull the captions, summarize them into a markdown research note, and save it to Google Drive.",
-        "path": "youtube-to-knowledge",
+        "formDescription": "Paste a YouTube link. We pull the captions, turn them into a structured markdown research document, and save it to Google Drive.",
         "formFields": {
           "values": [
             {
               "fieldLabel": "YouTube URL",
-              "fieldType": "text",
               "requiredField": true
             }
           ]
-        }
+        },
+        "options": {}
       },
-      "id": "a1000000-0000-4000-8000-000000000001",
+      "id": "bcd4162e-53d9-4da1-acd9-265f6578f611",
       "name": "On form submission",
       "type": "n8n-nodes-base.formTrigger",
       "typeVersion": 2.6,
       "position": [
-        0,
-        0
-      ]
+        64,
+        -384
+      ],
+      "webhookId": "100ae14e-50b7-47e4-a955-c20ca9396392"
     },
     {
       "parameters": {
@@ -39,73 +39,43 @@
         },
         "options": {}
       },
-      "id": "a1000000-0000-4000-8000-000000000002",
+      "id": "0c5dee6b-e33e-4ab4-86ac-ca633ee33a91",
       "name": "Fetch Transcript",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
         240,
-        0
+        -384
       ]
     },
     {
       "parameters": {
-        "jsCode": "// Build the LLM system + user prompt from the transcript service response.\n// Mirrors the AgeniusDesk youtube-research SINGLE_PASS breakdown.\nconst d = $input.first().json;\nconst title = d.title || '';\nconst channel = d.channel || '';\nconst url = d.url || '';\nconst transcript = d.text || '';\n\nconst system = 'You are a senior engineer and technical analyst. You turn a raw video ' +\n  'transcript into a dense, accurate research breakdown that a builder can learn from and ' +\n  'put into practice. You write plainly, no corporate filler, no em-dashes. You never invent ' +\n  'claims the transcript does not support. When the transcript has artifacts (repeated lines ' +\n  'from caption VAD), you silently de-duplicate them.';\n\nconst userPrompt =\n  'Produce a research breakdown of this video as GitHub-flavored markdown.\\n\\n' +\n  'Video: ' + (title || '(unknown title)') + '\\n' +\n  'Channel: ' + (channel || '(unknown)') + '\\n' +\n  'URL: ' + url + '\\n\\n' +\n  'Structure the breakdown with these sections (use ## headers):\\n\\n' +\n  '1. **One-line thesis** - the single core argument.\\n' +\n  '2. **Key concepts** - each major idea, defined clearly. Use subsections.\\n' +\n  '3. **Architectures / systems / workflows** - any concrete technical structure described ' +\n  '(pipelines, loops, components). Be precise.\\n' +\n  '4. **Notable techniques and golden nuggets** - the practical, actionable bits.\\n' +\n  '5. **Tools, people, and resources named** - with a one-line note on each.\\n' +\n  '6. **How to apply this** - map the ideas onto the reader\\'s own stack: what is worth ' +\n  'adopting and the concrete next step. Be specific and opinionated.\\n\\n' +\n  'Rules:\\n' +\n  '- Faithful to the transcript. Do not fabricate.\\n' +\n  '- Dense and skimmable. Tables and bullets over paragraphs where it helps.\\n' +\n  '- No em-dashes. No hype words (groundbreaking, revolutionary, game-changing).\\n\\n' +\n  'Transcript:\\n---\\n' + transcript + '\\n---\\n';\n\nreturn [{ json: Object.assign({}, d, { system: system, userPrompt: userPrompt }) }];\n"
+        "jsCode": "// Build the LLM system + user prompt from the transcript service response.\n// DEEP_DIVE variant: transcript-grounded technical extraction (exact numbers,\n// command sequences, config values, verbatim quotes). Mirrors the AgeniusDesk\n// youtube-research deep-dive prompt.\nconst d = $input.first().json;\nconst title = d.title || '';\nconst channel = d.channel || '';\nconst url = d.url || '';\nconst transcript = d.text || '';\n\nconst system = 'You are a senior engineer and technical analyst. You turn a raw video ' +\n  'transcript into an exhaustive, transcript-grounded technical breakdown that a builder can ' +\n  'follow to reproduce the work. Preserve every exact number, benchmark, command, flag, file ' +\n  'path, config value, version, and named tool exactly as stated. Quote important claims ' +\n  'verbatim. You never invent anything the transcript does not support; if a detail is ' +\n  'unclear or missing, say so rather than guessing. When the transcript has caption artifacts ' +\n  '(repeated lines from caption VAD), silently de-duplicate them. Write plainly: no corporate ' +\n  'filler, no hype words, no em-dashes.';\n\nconst userPrompt =\n  'Produce a DEEP-DIVE technical breakdown of this video as GitHub-flavored markdown. ' +\n  'Prioritize concrete, reproducible detail over summary.\\n\\n' +\n  'Video: ' + (title || '(unknown title)') + '\\n' +\n  'Channel: ' + (channel || '(unknown)') + '\\n' +\n  'URL: ' + url + '\\n\\n' +\n  'Structure the breakdown with these sections (use ## headers):\\n\\n' +\n  '1. **Thesis** - the single core argument in one or two sentences.\\n' +\n  '2. **Step-by-step walkthrough** - the actual sequence of what is done or explained, in ' +\n  'order. Number the steps. Include exactly what happens at each step.\\n' +\n  '3. **Commands, code, and config** - every command, code snippet, flag, env var, file path, ' +\n  'and config value mentioned, verbatim, in fenced code blocks. Do not paraphrase these.\\n' +\n  '4. **Numbers and benchmarks** - a markdown table of every metric, timing, price, size, ' +\n  'version, or benchmark stated, with its context. Only include numbers actually in the ' +\n  'transcript.\\n' +\n  '5. **Tools, people, and resources named** - each with version (if stated) and a one-line ' +\n  'note on its role.\\n' +\n  '6. **Direct quotes** - the most important claims quoted verbatim, attributed to the ' +\n  'speaker where clear.\\n' +\n  '7. **Gotchas and caveats** - warnings, edge cases, prerequisites, and failure modes ' +\n  'called out.\\n' +\n  '8. **How to apply / reproduce** - the concrete steps a reader would take to reproduce or ' +\n  'adopt this on their own stack. Be specific and opinionated.\\n\\n' +\n  'Rules:\\n' +\n  '- Faithful to the transcript. Do not fabricate. Mark uncertain details as (unclear).\\n' +\n  '- Preserve exact numbers, commands, and names. Never round or approximate.\\n' +\n  '- Dense and skimmable. Tables, numbered steps, and code blocks over prose.\\n' +\n  '- No em-dashes. No hype words (groundbreaking, revolutionary, game-changing).\\n\\n' +\n  'Transcript:\\n---\\n' + transcript + '\\n---\\n';\n\nreturn [{ json: Object.assign({}, d, { system: system, userPrompt: userPrompt }) }];\n"
       },
-      "id": "a1000000-0000-4000-8000-000000000003",
+      "id": "86ba9c54-28c5-4689-ad78-85d6d67cfa18",
       "name": "Build Prompt",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        480,
-        0
+        416,
+        -384
       ]
     },
     {
       "parameters": {
-        "method": "POST",
-        "url": "https://api.anthropic.com/v1/messages",
-        "authentication": "predefinedCredentialType",
-        "nodeCredentialType": "anthropicApi",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "anthropic-version",
-              "value": "2023-06-01"
-            }
-          ]
-        },
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 8000, temperature: 0.4, system: $json.system, messages: [ { role: 'user', content: $json.userPrompt } ] }) }}",
-        "options": {}
+        "jsCode": "// Assemble the final structured markdown research document (frontmatter + agent\n// output) and a filename. Reads the AI Agent output ($json.output).\nconst meta = $('Fetch Transcript').first().json;\nconst body = $input.first().json; // AI Agent response\n\nlet text = '';\ntry {\n  text = String(body.output != null ? body.output : (body.text || '')).trim();\n} catch (e) { text = ''; }\nif (!text) { throw new Error('Agent returned no text'); }\n\nconst title = meta.title || 'Untitled';\nconst channel = meta.channel || '';\nconst url = meta.url || '';\nconst videoId = meta.video_id || '';\n\nfunction slugify(s) {\n  return (s || 'note').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').substring(0, 80) || 'note';\n}\nconst q = function (s) { return String(s || '').replace(/\"/g, '\\\\\"'); };\nconst date = new Date().toISOString().split('T')[0];\nconst filename = slugify(title) + '-' + videoId + '.md';\n\nconst frontmatter =\n  '---\\n' +\n  'title: \"' + q(title) + '\"\\n' +\n  'source: ' + url + '\\n' +\n  'channel: \"' + q(channel) + '\"\\n' +\n  'video_id: ' + videoId + '\\n' +\n  'captured: ' + date + '\\n' +\n  'type: youtube-research\\n' +\n  '---\\n\\n';\n\nconst markdown = frontmatter + '# ' + title + '\\n\\n' + text + '\\n';\n\nreturn [{ json: { filename: filename, markdown: markdown, title: title, video_id: videoId, source: url } }];\n"
       },
-      "id": "a1000000-0000-4000-8000-000000000004",
-      "name": "Generate Breakdown",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        720,
-        0
-      ]
-    },
-    {
-      "parameters": {
-        "jsCode": "// Assemble the final markdown note (frontmatter + LLM breakdown) and a filename.\nconst meta = $('Fetch Transcript').first().json;\nconst body = $input.first().json; // Anthropic response\n\nlet text = '';\ntry {\n  text = (body.content || [])\n    .filter(function (b) { return b.type === 'text'; })\n    .map(function (b) { return b.text; })\n    .join('\\n')\n    .trim();\n} catch (e) { text = ''; }\nif (!text) { throw new Error('LLM returned no text'); }\n\nconst title = meta.title || 'Untitled';\nconst channel = meta.channel || '';\nconst url = meta.url || '';\nconst videoId = meta.video_id || '';\n\nfunction slugify(s) {\n  return (s || 'note').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').substring(0, 80) || 'note';\n}\nconst q = function (s) { return String(s || '').replace(/\"/g, '\\\\\"'); };\nconst date = new Date().toISOString().split('T')[0];\nconst filename = slugify(title) + '-' + videoId + '.md';\n\nconst frontmatter =\n  '---\\n' +\n  'title: \"' + q(title) + '\"\\n' +\n  'source: ' + url + '\\n' +\n  'channel: \"' + q(channel) + '\"\\n' +\n  'video_id: ' + videoId + '\\n' +\n  'captured: ' + date + '\\n' +\n  'type: youtube-research\\n' +\n  '---\\n\\n';\n\nconst markdown = frontmatter + '# ' + title + '\\n\\n' + text + '\\n';\n\nreturn [{ json: { filename: filename, markdown: markdown, title: title, video_id: videoId, source: url } }];\n"
-      },
-      "id": "a1000000-0000-4000-8000-000000000005",
+      "id": "447dbc2e-b831-4dad-b7d6-394c0230363f",
       "name": "Build Markdown",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        960,
-        0
+        96,
+        368
       ]
     },
     {
       "parameters": {
-        "resource": "file",
         "operation": "createFromText",
         "content": "={{ $json.markdown }}",
         "name": "={{ $json.filename }}",
@@ -117,51 +87,186 @@
         },
         "folderId": {
           "__rl": true,
-          "mode": "id",
           "value": "YOUR_DRIVE_FOLDER_ID",
-          "cachedResultName": "Knowledge"
+          "mode": "list",
+          "cachedResultName": "Your Drive folder"
         },
         "options": {}
       },
-      "id": "a1000000-0000-4000-8000-000000000006",
+      "id": "981e8c23-8348-4ae7-b5bc-b671c1a3fb95",
       "name": "Save to Google Drive",
       "type": "n8n-nodes-base.googleDrive",
       "typeVersion": 3,
       "position": [
-        1200,
-        0
+        288,
+        368
       ]
     },
     {
       "parameters": {
         "operation": "completion",
-        "respondWith": "text",
         "completionTitle": "Saved to Google Drive",
-        "completionMessage": "=Your research note \"{{ $json.name }}\" was saved.\n\nOpen it: {{ $json.webViewLink }}"
+        "completionMessage": "=Your research note \"{{ $json.name }}\" was saved.\n\nOpen it: {{ $json.webViewLink }}",
+        "options": {}
       },
-      "id": "a1000000-0000-4000-8000-000000000007",
+      "id": "976b2e1a-2079-43d8-8b60-e74b87607056",
       "name": "Done",
       "type": "n8n-nodes-base.form",
       "typeVersion": 2.5,
       "position": [
-        1440,
-        0
-      ]
+        480,
+        368
+      ],
+      "webhookId": "3453f704-6c60-4a2c-acd2-6b883ba9d14d"
     },
     {
       "parameters": {
-        "content": "# YouTube → Knowledge\n\nPaste a YouTube link in the form. The workflow pulls the captions (via a small yt-dlp service), summarizes them into a structured markdown research note with an LLM, and saves the note to Google Drive.\n\n**Setup:** point **Fetch Transcript** at your yt-dlp service (see `service/`), attach an **Anthropic** credential to **Generate Breakdown**, attach **Google Drive** to **Save to Google Drive** and set the target folder.",
-        "height": 220,
-        "width": 720
+        "content": "# YouTube → Knowledge\n\nPaste a YouTube link. The workflow pulls the video's captions (via a small yt-dlp service on the Docker network), turns them into a **fully structured markdown research document you can feed straight into any AI system**, and saves it to Google Drive.\n\nThe model runs through an **AI Agent** node, so you can swap models (Claude, GPT, local Ollama) and compare outputs.\n\n**Live service:** ytdlp-captions container on VM 100 (n8n-dev_default network).",
+        "height": 332,
+        "width": 720,
+        "color": 5
       },
-      "id": "a1000000-0000-4000-8000-0000000000n1",
+      "id": "5e5b81b0-a3f5-4872-a556-c8b2392567b9",
       "name": "Header Note",
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
       "position": [
-        0,
-        -260
+        -48,
+        -800
       ]
+    },
+    {
+      "parameters": {
+        "content": "## Setup: captions service (Docker)\n\nThe **Fetch Transcript** node calls a tiny yt-dlp captions service over the Docker network. It has no public endpoint. n8n reaches it by container name.\n\n**1. Put three files in a folder** (`app.py`, `Dockerfile`, `requirements.txt`).\n\n`requirements.txt`\n```\nfastapi>=0.110\nuvicorn[standard]>=0.29\nyt-dlp>=2024.0.0\nhttpx>=0.27\n```\n\n`Dockerfile`\n```\nFROM python:3.12-slim\nWORKDIR /app\nCOPY requirements.txt .\nRUN pip install --no-cache-dir -r requirements.txt\nCOPY app.py .\nEXPOSE 8080\nCMD [\"uvicorn\",\"app:app\",\"--host\",\"0.0.0.0\",\"--port\",\"8080\"]\n```\n\n`app.py` is the captions service (one `GET /transcript?url=` endpoint). Grab it from the repo.\n\n**2. Build**\n```\ndocker build -t ytdlp-captions:latest .\n```\n\n**3. Run on the SAME Docker network as your n8n container** so n8n can resolve it by name:\n```\ndocker run -d --name ytdlp-captions \\\n  --network n8n-dev_default \\\n  --restart unless-stopped \\\n  -p 8087:8080 \\\n  ytdlp-captions:latest\n```\nFind your n8n network name:\n```\ndocker inspect <n8n-container> \\\n  --format '{{range $k,$_ := .NetworkSettings.Networks}}{{$k}} {{end}}'\n```\n\n**4. Node URL** stays `http://ytdlp-captions:8080/transcript`. The container name resolves on the shared network; the `-p 8087:8080` mapping is only for host-side testing and n8n does not use it.\n\nCaptions-only by design: no Whisper, no GPU. Only egress is to YouTube.",
+        "height": 1416,
+        "width": 768,
+        "color": 6
+      },
+      "id": "40e11f79-8d85-42f0-9321-ef97c6dd95e4",
+      "name": "Captions Service Setup",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        688,
+        -800
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.userPrompt }}",
+        "options": {
+          "systemMessage": "={{ $json.system }}"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        256,
+        -80
+      ],
+      "id": "6671c16d-5984-4133-82b9-a675d1c1946f",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "claude-sonnet-4-5-20250929",
+          "mode": "list",
+          "cachedResultName": "Claude Sonnet 4.5"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.5,
+      "position": [
+        192,
+        128
+      ],
+      "id": "a360a9d3-e19b-4457-a450-550f7daf1399",
+      "name": "Anthropic Sonnet 4.5"
+    },
+    {
+      "parameters": {
+        "content": "## 1. Ingest + prompt\n\n- **Form** takes a YouTube URL.\n- **Fetch Transcript** pulls the captions (captions only, no Whisper/GPU).\n- **Build Prompt** turns the transcript into the deep-dive system + user prompt.",
+        "height": 288,
+        "width": 1168,
+        "color": 4
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -496,
+        -448
+      ],
+      "typeVersion": 1,
+      "id": "90035d99-83bd-4d0a-b869-52fb716b5730",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "content": "## 2. Model (swap to compare)\n\n- **AI Agent** runs the prompt and returns the write-up.\n- Connect **one** chat model to the agent.\n- Swap between **Sonnet 4.5 / GPT-5 / Ollama Qwen** to compare quality, speed, and cost.\n-  Drag a different model's connector onto the agent to switch.",
+        "height": 432,
+        "width": 1168,
+        "color": 4
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -496,
+        -144
+      ],
+      "typeVersion": 1,
+      "id": "55b0766a-036d-4d19-b799-447f6429eb30",
+      "name": "Sticky Note1"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-5",
+          "mode": "list",
+          "cachedResultName": "gpt-5"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        320,
+        128
+      ],
+      "id": "5551f7a4-e5fc-4131-9d53-55ef3a40da23",
+      "name": "OpenAI GPT-5"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [
+        448,
+        128
+      ],
+      "id": "0fe13199-8f64-476d-91b8-be80136084db",
+      "name": "Ollama Quen 32b"
+    },
+    {
+      "parameters": {
+        "content": "## 3. Output\n\n- **Build Markdown** wraps the agent output in YAML frontmatter → \na structured markdown research document.\n- **Save to Google Drive** writes the `.md` file.\n- **Done** returns the Drive link.",
+        "height": 304,
+        "width": 1168,
+        "color": 4
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -496,
+        304
+      ],
+      "typeVersion": 1,
+      "id": "b160d4ca-c5a8-4957-acff-432bb57106bc",
+      "name": "Sticky Note2"
     }
   ],
   "connections": {
@@ -191,18 +296,7 @@
       "main": [
         [
           {
-            "node": "Generate Breakdown",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Generate Breakdown": {
-      "main": [
-        [
-          {
-            "node": "Build Markdown",
+            "node": "AI Agent",
             "type": "main",
             "index": 0
           }
@@ -230,10 +324,43 @@
           }
         ]
       ]
+    },
+    "Anthropic Sonnet 4.5": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Build Markdown",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI GPT-5": {
+      "ai_languageModel": [
+        []
+      ]
+    },
+    "Ollama Quen 32b": {
+      "ai_languageModel": [
+        []
+      ]
     }
   },
   "settings": {
-    "executionOrder": "v1"
+    "executionOrder": "v1",
+    "binaryMode": "separate"
   },
   "pinData": {},
   "meta": {}

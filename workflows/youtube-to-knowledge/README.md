@@ -1,20 +1,26 @@
 # YouTube → Knowledge
 
-Paste a YouTube link into a form and get a structured markdown research note saved to Google Drive. The workflow pulls the video's captions, summarizes them into a dense, skimmable breakdown with an LLM, and files the result in Drive.
+![Workflow canvas](workflow.png)
+
+Paste a YouTube link into a form and get a fully structured markdown research document saved to Google Drive. The workflow pulls the video's captions, runs them through an **AI Agent** that produces a deep-dive, transcript-grounded breakdown, and files the result in Drive as a `.md` you can feed straight into any AI system (RAG ingestion, a second agent, Claude Projects, and so on).
 
 ## Flow
 
 ```
 Form (YouTube URL)
   → Fetch Transcript (yt-dlp captions service)
-  → Build Prompt
-  → Generate Breakdown (Claude Haiku)
+  → Build Prompt (deep-dive system + user prompt)
+  → AI Agent (swappable chat model)
   → Build Markdown (frontmatter + breakdown)
   → Save to Google Drive (Create From Text)
   → Completion screen with the Drive link
 ```
 
-The LLM produces the same six-section breakdown shape as the AgeniusDesk youtube-research module: one-line thesis, key concepts, architectures/workflows, notable techniques, tools & people named, and how to apply it.
+The agent produces a deep-dive document with eight sections: thesis, step-by-step walkthrough, verbatim commands/code/config, a numbers & benchmarks table, tools/people/resources named, direct quotes, gotchas & caveats, and how to apply or reproduce it. It is instructed to preserve exact numbers, commands, and names, and never to fabricate.
+
+## Swap models to compare
+
+The model is an **AI Agent** node, so any chat model plugs into it. The template ships three set up as alternates — **Anthropic Claude Sonnet 4.5**, **OpenAI GPT-5**, and a **local Ollama (Qwen)** — so you can run the same transcript through each and compare quality, speed, and cost. An agent uses one model at a time: drag a different model's connector onto the agent's **Chat Model** input to switch.
 
 ## Why a captions service (not the YouTube API)
 
@@ -26,7 +32,7 @@ Captions-only: no Whisper/GPU. Videos with captions disabled return a `422` and 
 
 - n8n (self-hosted or Cloud)
 - The **yt-dlp captions service** from [`service/`](service/), reachable over HTTP
-- **Anthropic** API key (Claude Haiku writes the breakdown; swap for any provider)
+- **At least one chat-model credential** for the AI Agent: Anthropic, OpenAI, or a local Ollama endpoint (mix and match to compare)
 - **Google Drive** OAuth2 credential
 
 ## Setup
@@ -34,16 +40,22 @@ Captions-only: no Whisper/GPU. Videos with captions disabled return a `422` and 
 1. **Deploy the service** — see [`service/README.md`](service/README.md). Note its URL.
 2. **Import** `youtube-to-knowledge.json` into n8n.
 3. **Fetch Transcript** — set the URL to your service, e.g. `http://ytdlp-captions:8080/transcript`.
-4. **Generate Breakdown** — attach your **Anthropic** credential (or repoint the HTTP node at another provider).
+4. **AI Agent** — attach a chat model. Open one of the model nodes (Anthropic / OpenAI / Ollama), add your credential, and confirm its connector runs to the agent's **Chat Model** input. Only the connected model runs.
 5. **Save to Google Drive** — attach your **Google Drive** credential and set the target folder (`YOUR_DRIVE_FOLDER_ID`).
 6. Open the form's **Production URL** and paste a link.
 
+The sticky notes on the canvas walk through each stage and the captions-service Docker setup.
+
+## AI-assisted setup
+
+Not sure how to wire it against your own stack? See [`AI-SETUP-PROMPT.md`](AI-SETUP-PROMPT.md) — paste the block into any reasoning LLM and it interviews you through deployment.
+
 ## Customize
 
-- **Deep dive:** add a second LLM call after the breakdown using the module's `DEEP_DIVE` prompt for a transcript-grounded extraction (exact numbers, command sequences, quotes), and save it as a second file.
-- **Auto-filing:** classify the note into a topic folder before saving (the module does this) by adding a small LLM call + a Drive folder lookup.
+- **Auto-filing:** classify the document into a topic folder before saving by adding a small LLM call + a Drive folder lookup.
 - **Other sinks:** swap the Drive node for Notion, S3, or an n8n knowledge/RAG ingestion workflow.
-- **Long videos:** very long transcripts can exceed the model's output budget; chunk + map-reduce, or raise `max_tokens` on the Generate Breakdown node.
+- **Long videos:** very long transcripts can exceed the model's output budget; chunk + map-reduce, or raise the model's max output tokens.
+- **Shallower/faster:** point the agent at a cheaper model (Haiku, a mini tier, or a small local model) for a quick summary instead of the full deep dive.
 
 ## License
 
