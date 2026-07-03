@@ -1,6 +1,8 @@
 # Autonomous Social Media Pipeline
 
-A scheduled social content engine for **any vertical**. On a schedule it picks the next slot in a 12-post Instagram grid cycle, writes a caption + image prompt with an LLM (Claude Haiku by default), generates an original image, publishes to Facebook + Instagram, logs to Airtable, and pings you on Telegram.
+A scheduled social content engine for **any vertical**. On a schedule it picks the next slot in a 12-post Instagram grid cycle, writes a caption + image prompt with an LLM (Claude Haiku by default), generates an original image, publishes to Facebook + Instagram, logs to Airtable, and pings you on the messaging platform of your choice.
+
+It ships wired for Telegram, but the notification step is just a message-out node: point it at Slack, Discord, Telegram, or any incoming webhook and it works the same. You set up the one you already use.
 
 Adapt it to your industry by editing **one node**. Cost is dominated by image generation (a few cents per post) plus a fraction of a cent for the LLM call.
 
@@ -30,12 +32,12 @@ The design is fully **config-driven**: the five content topics used to live in f
 - **KIE.ai** API key (image generation, this is where most of the per-post cost lands)
 - **Meta Graph API** access token for a Facebook Page linked to an Instagram Business account
 - **Airtable** account (content cycle state + published-post log)
-- **Telegram** bot (notifications) — or swap these two nodes for Slack, see below
+- A **messaging platform** for notifications: Telegram out of the box, or Slack / Discord / any incoming webhook (see Customize)
 
 ## Setup
 
 ### 1. Import
-`agenius3d-social-media-pipeline.json` → **Import from File** in n8n.
+`autonomous-social-media-pipeline.json` → **Import from File** in n8n.
 
 ### 2. Attach credentials (none are bundled)
 - **Anthropic** on the `Generate Content` node.
@@ -67,7 +69,7 @@ The schedule fires at 10am and 3pm (cron `0 0 10,15 * * *`, server timezone). Us
 - **Your vertical + topics** live entirely in the `Config` node (`vertical`, `brandVoice`, `topics`). This is the only place with industry-specific wording, change it and the whole pipeline retargets.
 - **The grid cycle** is the `Config` node's `cycle` array. Reorder or resize it to change what posts when (it doesn't have to be 12 slots).
 - **Swap the LLM:** `Config.llmModel` sets the Claude model; to use a different provider, point the `Generate Content` HTTP node at another API.
-- **Slack instead of Telegram:** swap the two Telegram nodes (`KIE Error`, `Success Notification`) for a Slack node or an HTTP POST to an incoming webhook. Everything upstream is unchanged.
+- **Any messaging platform:** it ships wired for Telegram (`KIE Error`, `Success Notification`), but those are just message-out nodes. Swap them for a Slack node, a Discord node, or an HTTP POST to any incoming webhook and everything upstream is unchanged. Wire up the one you already use.
 - **Image specs** (model, aspect ratio, resolution) are in `Config` (`kieModel`, `kieAspectRatio`, `kieResolution`).
 
 ## Notes
