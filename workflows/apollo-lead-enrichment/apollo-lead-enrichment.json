@@ -1,0 +1,805 @@
+{
+  "name": "Lead Enrichment - Apollo (credit-aware)",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "# Lead Enrichment - Apollo (credit-aware)\n\nFires from a webhook your Google Maps scrape calls when a run finishes. Fetches the dataset for THIS run id (no race), dedups against `seen_leads`, writes raw rows, enriches each business via Apollo, scores it against YOUR ICP, writes enriched rows, then **conditionally spends a reveal credit** on the highest-conviction contacts only.\n\n## Apollo free-tier strategy\n\nFree on Apollo:\n- `organizations/enrich` - company details from a domain\n- people search - decision-maker contacts (name, title, LinkedIn) with **masked** emails\n\nCosts credits (capped per month):\n- `people/match` with `reveal_personal_emails=true` - the actual email reveal\n\nEveryone is scored for free. A credit is spent ONLY when ALL are true:\n1. `icp_score >= REVEAL_MIN_SCORE` (Config, default 60)\n2. Title matches a decision-maker (regex in `Reveal gate`)\n3. Reveals used this month is under `MONTHLY_REVEAL_CAP` (Config, default 50)\n\nUnrevealed contacts still land in the table with `email_status='unrevealed'`, so you can reveal them by hand later.\n\n## Output is a cold-lead table, NOT your CRM\n\nEverything lands in `cold_outreach.gms_leads_enriched`. Cold leads are unqualified - these businesses never asked to hear from you. Keep them out of your CRM. Run your outbound sequence off this table and log the sends here; promote a lead into your CRM only when they REPLY. That keeps your CRM clean and your pipeline reporting honest.\n\n## Trigger payload contract (POST to the webhook)\n`{ \"run_pk\": 123, \"vertical\": \"your_vertical\", \"apify_run_id\": \"...\", \"dataset_id\": \"...\", \"status\": \"SUCCEEDED\" }`\n\n`run_pk` is the id of a row you created in `cold_outreach.gms_runs` before the scrape kicked off. See the README for the minimal starter.",
+        "height": 1436,
+        "width": 1176,
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -1296,
+        -800
+      ],
+      "typeVersion": 1,
+      "id": "5ec53d28-2f4e-4ad6-a04a-95d04dbcef28",
+      "name": "Doc"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "maps-lead-enrich-inbound",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -1232,
+        16
+      ],
+      "id": "ae2c0f93-2ac7-49ba-8348-d14864cce013",
+      "name": "Apify webhook",
+      "webhookId": "41300c9b-39a6-4a9b-9ed6-4f6bb13d5b94",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\"ok\": true, \"run_pk\": {{ $json.body.run_pk }}}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        -1056,
+        16
+      ],
+      "id": "ed0f36b0-5566-47a3-ac7a-36108a407091",
+      "name": "Ack 200"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "c1",
+              "name": "MONTHLY_REVEAL_CAP",
+              "type": "number",
+              "value": 50
+            },
+            {
+              "id": "c2",
+              "name": "REVEAL_MIN_SCORE",
+              "type": "number",
+              "value": 60
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -912,
+        16
+      ],
+      "id": "59f94bca-a577-4f5d-b534-3e4d6c311c99",
+      "name": "Config"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $('Apify webhook').first().json.body.status }}",
+              "rightValue": "SUCCEEDED",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -752,
+        16
+      ],
+      "id": "0a6df015-5698-44a8-91f8-9a4785ab143e",
+      "name": "Apify SUCCEEDED?"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE cold_outreach.gms_runs\nSET status = 'failed', error_message = $1, completed_at = now()\nWHERE id = $2;",
+        "options": {
+          "queryReplacement": "={{ ['Apify ' + ($('Apify webhook').first().json.body.status || 'FAILED'), $('Apify webhook').first().json.body.run_pk] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        -464,
+        192
+      ],
+      "id": "ebfa4fdc-cc5d-46b1-b03c-4bbc9aec7ec3",
+      "name": "Mark failed"
+    },
+    {
+      "parameters": {
+        "url": "=https://api.apify.com/v2/datasets/{{ $('Apify webhook').first().json.body.dataset_id }}/items?clean=true&format=json",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpQueryAuth",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -496,
+        0
+      ],
+      "id": "fc84be53-7de6-414b-ac78-2441e45761fc",
+      "name": "Get dataset items"
+    },
+    {
+      "parameters": {
+        "jsCode": "const webhookCtx = $('Apify webhook').first().json.body;\nconst __all = $input.all();\nlet placesArr;\nif (__all.length === 1 && Array.isArray(__all[0].json)) { placesArr = __all[0].json; }\nelse if (__all.length === 1 && __all[0].json && Array.isArray(__all[0].json.body)) { placesArr = __all[0].json.body; }\nelse { placesArr = __all.map(function (i) { return i.json; }); }\n\n// Trim common company suffixes so you get a clean short name for outreach\n// (\"Smith & Co\" not \"Smith & Co., LLC\"). Add your own patterns as needed.\nconst SUFFIX_PATTERNS = [\n  /,?\\s+&\\s+Associates\\.?\\b/gi,\n  /,?\\s+L\\.?L\\.?C\\.?\\b/gi,\n  /,?\\s+L\\.?L\\.?P\\.?\\b/gi,\n  /,?\\s+P\\.?L\\.?L\\.?C\\.?\\b/gi,\n  /,?\\s+P\\.?C\\.?\\b/gi,\n  /,?\\s+Inc\\.?\\b/gi,\n  /,?\\s+Corp\\.?\\b/gi,\n  /,?\\s+Co\\.?\\b/gi,\n  /,?\\s+Ltd\\.?\\b/gi,\n  /,?\\s+Group\\b/gi,\n  /,?\\s+Holdings\\b/gi,\n  /^The\\s+/gi,\n];\nfunction shorten(name) {\n  if (!name) return null;\n  let s = String(name).trim();\n  let changed = true;\n  while (changed) {\n    changed = false;\n    for (const pat of SUFFIX_PATTERNS) {\n      const next = s.replace(pat, '').replace(/[\\s,.]+$/, '').replace(/^[\\s,.]+/, '');\n      if (next && next !== s) { s = next; changed = true; }\n    }\n  }\n  return s || String(name).trim();\n}\nfunction canonicalDomain(url) {\n  if (!url) return null;\n  try {\n    const u = new URL(String(url).trim().startsWith('http') ? url : 'http://' + url);\n    return u.hostname.toLowerCase().replace(/^www\\./, '') || null;\n  } catch (e) {\n    return String(url).toLowerCase().replace(/^https?:\\/\\//, '').replace(/^www\\./, '').split('/')[0] || null;\n  }\n}\nreturn placesArr.map((p) => {\n  const website = p.website || p.url || null;\n  const domain = canonicalDomain(website);\n  return {\n    json: {\n      run_pk: webhookCtx.run_pk,\n      vertical: webhookCtx.vertical,\n      apify_run_id: webhookCtx.apify_run_id,\n      place_id: p.placeId || p.place_id || null,\n      canonical_domain: domain,\n      firm_name: p.title || p.name || null,\n      firm_short_name: shorten(p.title || p.name),\n      website: website,\n      phone: p.phone || p.phoneUnformatted || null,\n      email: (p.emails && p.emails[0]) || null,\n      address: p.address || null,\n      city: p.city || null,\n      state: p.state || null,\n      postal_code: p.postalCode || null,\n      category: p.categoryName || (p.categories && p.categories[0]) || null,\n      rating: p.totalScore || null,\n      reviews_count: p.reviewsCount || null,\n      permanently_closed: !!p.permanentlyClosed,\n      raw_payload: p,\n    },\n  };\n});\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -336,
+        0
+      ],
+      "id": "68e763e8-b4c2-4636-9ccf-801c40b8ed33",
+      "name": "Normalize places"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH dedup AS (\n  INSERT INTO cold_outreach.seen_leads (canonical_domain, place_id, first_run_id)\n  VALUES ($1, $2, $3)\n  ON CONFLICT (canonical_domain, place_id) DO UPDATE\n    SET last_seen_at = now(), seen_count = cold_outreach.seen_leads.seen_count + 1\n  RETURNING (xmax = 0) AS is_new\n)\nSELECT is_new FROM dedup;",
+        "options": {
+          "queryReplacement": "={{ [$json.canonical_domain, $json.place_id, $json.run_pk] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        0,
+        448
+      ],
+      "id": "1b7d40a6-d5f0-43f1-8283-5bc5ef013ae2",
+      "name": "Dedup seen_leads"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{$json.is_new}}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        192,
+        448
+      ],
+      "id": "b80fc6f6-6e85-4569-a813-7e5f86a3f988",
+      "name": "New lead?"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO cold_outreach.gms_leads_raw\n  (run_id, place_id, canonical_domain, firm_name, firm_short_name, website, phone, email,\n   address, city, state, postal_code, category, rating, reviews_count, permanently_closed, raw_payload)\nVALUES\n  ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17::jsonb)\nON CONFLICT (run_id, place_id) DO NOTHING\nRETURNING id, canonical_domain, firm_name, firm_short_name, website, rating, reviews_count, category, state, city;",
+        "options": {
+          "queryReplacement": "={{ [ $('Normalize places').item.json.run_pk, $('Normalize places').item.json.place_id, $('Normalize places').item.json.canonical_domain, $('Normalize places').item.json.firm_name, $('Normalize places').item.json.firm_short_name, $('Normalize places').item.json.website, $('Normalize places').item.json.phone, $('Normalize places').item.json.email, $('Normalize places').item.json.address, $('Normalize places').item.json.city, $('Normalize places').item.json.state, $('Normalize places').item.json.postal_code, $('Normalize places').item.json.category, $('Normalize places').item.json.rating, $('Normalize places').item.json.reviews_count, $('Normalize places').item.json.permanently_closed, JSON.stringify($('Normalize places').item.json.raw_payload) ] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        416,
+        432
+      ],
+      "id": "56d3234d-cfa2-47f0-94b5-dc8038039d7a",
+      "name": "Insert raw"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{$json.canonical_domain}}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        608,
+        432
+      ],
+      "id": "28ef039b-5ebc-4828-8d2c-dd215fcaf6f0",
+      "name": "Has domain?"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.apollo.io/v1/organizations/enrich",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"domain\": \"{{$json.canonical_domain}}\" }",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        16,
+        -144
+      ],
+      "id": "ccfd8d09-9c5a-4ca9-85ae-bc1458b4cf4e",
+      "name": "Apollo: enrich org (free)",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.apollo.io/v1/mixed_people/api_search",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"organization_ids\": [\"{{$json.organization?.id || $json.id}}\"],\n  \"person_titles\": [\"Owner\", \"Founder\", \"Co-Founder\", \"CEO\", \"President\", \"Principal\", \"Partner\", \"Managing Member\", \"Managing Director\", \"General Manager\", \"Director\", \"Vice President\"],\n  \"per_page\": 5,\n  \"page\": 1\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        240,
+        -144
+      ],
+      "id": "496b14a4-57f4-4acb-a1e8-ca98488ef333",
+      "name": "Apollo: people search (free)",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ---- EDIT THIS BLOCK: your Ideal Customer Profile -------------------\n// Google Maps + Apollo hand you these signals for free. Tune them to\n// describe YOUR ideal customer; the reveal gate then only spends a\n// credit on businesses that clear the bar.\nconst TARGET_STATES   = ['NY', 'NJ', 'CT'];                 // states/regions you sell into; [] disables the geo signal\nconst TARGET_CATEGORY = /(consult|agency|studio|service)/i; // words in the Google category that signal a fit\nconst MIN_RATING      = 4.0;                                // Google rating floor\nconst MIN_REVIEWS     = 50;                                 // review-count floor (proxy for an established business)\n// --------------------------------------------------------------------\n\nfunction scoreLead(o) {\n  let score = 0; const reasons = {};\n  if (o.rating != null && Number(o.rating) >= MIN_RATING) { score += 20; reasons.rating = Number(o.rating); }\n  if (o.reviews_count != null && Number(o.reviews_count) >= MIN_REVIEWS) { score += 20; reasons.reviews = Number(o.reviews_count); }\n  if (o.website) { score += 20; reasons.has_website = true; }\n  if (o.state && (TARGET_STATES.length === 0 || TARGET_STATES.includes(String(o.state).toUpperCase().trim()))) { score += 20; reasons.in_region = o.state || 'any'; }\n  if (o.category && TARGET_CATEGORY.test(o.category)) { score += 20; reasons.category_match = o.category; }\n  return { score: Math.min(score, 100), reasons };\n}\n\nconst runPk = $('Apify webhook').first().json.body.run_pk;\nconst items = $input.all();\nconst out = [];\n\nfor (let i = 0; i < items.length; i++) {\n  const peopleResp = items[i].json || {};\n  let raw = {}, orgResp = {};\n  try { raw = $('Insert raw').itemMatching(i).json; } catch (e) { try { raw = $('Insert raw').all()[i].json; } catch (e2) {} }\n  try { orgResp = $('Apollo: enrich org (free)').itemMatching(i).json; } catch (e) { try { orgResp = $('Apollo: enrich org (free)').all()[i].json; } catch (e2) {} }\n\n  const org = (orgResp && (orgResp.organization || (orgResp.organizations && orgResp.organizations[0]))) || {};\n  const people = (org && org.id) ? (peopleResp.people || peopleResp.contacts || []) : [];\n  const employees = org.estimated_num_employees || org.employees_count || null;\n  const industry = org.industry || (org.industries && org.industries[0]) || null;\n  const category = raw.category || industry || null;\n\n  const s = scoreLead({ rating: raw.rating, reviews_count: raw.reviews_count, website: raw.website, state: raw.state, category: category });\n\n  const base = {\n    raw_id: raw.id, run_id: runPk, canonical_domain: raw.canonical_domain,\n    firm_name: raw.firm_name, firm_short_name: raw.firm_short_name,\n    apollo_org_id: org.id || null, employee_count: employees, industry: industry,\n    practice_area: category, linkedin_url: org.linkedin_url || null, apollo_org_payload: org,\n  };\n\n  if (!people.length) {\n    out.push({ json: Object.assign({}, base, { apollo_person_id: null, first_name: null, last_name: null, title: null, seniority: null, email: null, email_status: 'no_contact_found', phone: null, person_linkedin_url: null, icp_score: s.score, icp_reasons: Object.assign({}, s.reasons, { reason: 'no_apollo_people_match' }), apollo_person_payload: null }), pairedItem: { item: i } });\n  } else {\n    for (const person of people) {\n      out.push({ json: Object.assign({}, base, { apollo_person_id: person.id || null, first_name: person.first_name || null, last_name: person.last_name || null, title: person.title || null, seniority: person.seniority || null, email: null, email_status: 'unrevealed', phone: (person.phone_numbers && person.phone_numbers[0] && person.phone_numbers[0].sanitized_number) || null, person_linkedin_url: person.linkedin_url || null, icp_score: s.score, icp_reasons: s.reasons, apollo_person_payload: person }), pairedItem: { item: i } });\n    }\n  }\n}\nreturn out;\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        448,
+        -144
+      ],
+      "id": "1639f3ce-559b-4ff1-bf1c-7fe7f5220b13",
+      "name": "Score ICP (no reveal)"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO cold_outreach.gms_leads_enriched\n  (raw_id, run_id, canonical_domain, firm_name, firm_short_name, apollo_org_id, employee_count,\n   industry, practice_area, linkedin_url, apollo_person_id, first_name, last_name, title, seniority,\n   email, email_status, phone, person_linkedin_url, icp_score, icp_reasons,\n   apollo_org_payload, apollo_person_payload)\nVALUES\n  ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21::jsonb,$22::jsonb,$23::jsonb)\nON CONFLICT (canonical_domain, apollo_person_id) DO UPDATE\n  SET icp_score = EXCLUDED.icp_score,\n      icp_reasons = EXCLUDED.icp_reasons\nRETURNING id, icp_score, title, apollo_person_id, first_name, last_name, canonical_domain;",
+        "options": {
+          "queryReplacement": "={{ [ $json.raw_id, $json.run_id, $json.canonical_domain, $json.firm_name, $json.firm_short_name, $json.apollo_org_id, $json.employee_count, $json.industry, $json.practice_area, $json.linkedin_url, $json.apollo_person_id, $json.first_name, $json.last_name, $json.title, $json.seniority, $json.email, $json.email_status, $json.phone, $json.person_linkedin_url, $json.icp_score, JSON.stringify($json.icp_reasons), JSON.stringify($json.apollo_org_payload), JSON.stringify($json.apollo_person_payload) ] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        656,
+        -144
+      ],
+      "id": "03e0fa8e-7fb3-45e6-b7e4-f4d0517eda16",
+      "name": "Insert enriched"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT\n  (SELECT COUNT(*) FROM cold_outreach.gms_leads_enriched\n     WHERE email_status = 'verified'\n       AND created_at >= date_trunc('month', now())) AS reveals_used,\n  $1::int AS reveals_cap,\n  $2::int AS min_score;",
+        "options": {
+          "queryReplacement": "={{ [$('Config').first().json.MONTHLY_REVEAL_CAP, $('Config').first().json.REVEAL_MIN_SCORE] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        -16,
+        -592
+      ],
+      "id": "4c595054-b483-4e83-adfb-1083d994e54e",
+      "name": "Check reveal budget"
+    },
+    {
+      "parameters": {
+        "jsCode": "const TITLE_REGEX = /(owner|founder|co[-\\s]?founder|ceo|president|principal|partner|managing member|managing director|general manager|director|vice president|vp)/i;\nconst items = $input.all();\nconst out = [];\nfor (let i = 0; i < items.length; i++) {\n  const budget = items[i].json || {};\n  let enriched = {};\n  try { enriched = $('Insert enriched').itemMatching(i).json; } catch (e) { try { enriched = $('Insert enriched').all()[i].json; } catch (e2) {} }\n  const revealsUsed = Number(budget.reveals_used || 0);\n  const revealsCap = Number(budget.reveals_cap || 0);\n  const minScore = Number(budget.min_score || 60);\n  const score = Number(enriched.icp_score || 0);\n  const title = enriched.title || '';\n  const apolloPersonId = enriched.apollo_person_id;\n  const shouldReveal = !!(apolloPersonId && revealsUsed < revealsCap && score >= minScore && TITLE_REGEX.test(title));\n  out.push({ json: Object.assign({}, enriched, { should_reveal: shouldReveal, reveals_used: revealsUsed, reveals_remaining: Math.max(0, revealsCap - revealsUsed), reveal_skip_reason: shouldReveal ? null : (!apolloPersonId ? 'no_apollo_id' : revealsUsed >= revealsCap ? 'monthly_cap_exhausted' : score < minScore ? ('score_below_' + minScore) : 'title_not_decision_maker') }), pairedItem: { item: i } });\n}\nreturn out;\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        144,
+        -592
+      ],
+      "id": "cb1e497a-de47-4b3e-ab6f-49f9cc67af3b",
+      "name": "Reveal gate"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{$json.should_reveal}}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        288,
+        -592
+      ],
+      "id": "0ce2eda0-c382-4ba8-8862-dbb78fdf7811",
+      "name": "Reveal?"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.apollo.io/v1/people/match",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"id\": \"{{$json.apollo_person_id}}\",\n  \"reveal_personal_emails\": true,\n  \"reveal_phone_number\": false\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        480,
+        -608
+      ],
+      "id": "a3ae0cda-a06d-46cb-9988-0bb769ece5ef",
+      "name": "Apollo: REVEAL (1 credit)",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE cold_outreach.gms_leads_enriched\nSET email = $1,\n    email_status = COALESCE($2, 'unknown'),\n    apollo_person_payload = $3::jsonb,\n    icp_score = LEAST(100, icp_score + CASE WHEN $2 = 'verified' THEN 30 WHEN $2 IN ('guessed','likely_to_engage') THEN 10 ELSE 0 END),\n    icp_reasons = icp_reasons || jsonb_build_object('reveal_status', $2)\nWHERE id = $4\nRETURNING id, email, email_status, icp_score;",
+        "options": {
+          "queryReplacement": "={{ [ $json.person?.email || null, $json.person?.email_status || null, JSON.stringify($json.person || {}), $('Reveal gate').item.json.id ] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        880,
+        -784
+      ],
+      "id": "381a0df4-7ed9-4b3d-9468-70e0f851fbe3",
+      "name": "Apply reveal"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE cold_outreach.gms_leads_enriched\nSET icp_reasons = icp_reasons || jsonb_build_object('reveal_skipped', $1)\nWHERE id = $2;",
+        "options": {
+          "queryReplacement": "={{ [$json.reveal_skip_reason || 'skipped', $json.id] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        880,
+        -624
+      ],
+      "id": "8e980889-01e1-4f43-8bdc-3f9bc3e76841",
+      "name": "Note reveal skip"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE cold_outreach.gms_leads_raw\nSET enrichment_status = 'enriched'\nWHERE run_id = $1 AND enrichment_status IS DISTINCT FROM 'enriched';",
+        "options": {
+          "queryReplacement": "={{ [$('Apify webhook').first().json.body.run_pk] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1072,
+        -736
+      ],
+      "id": "78d4d039-c5f3-4fb8-9753-9b5708ac9311",
+      "name": "Mark raw enriched"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE cold_outreach.gms_leads_raw\nSET enrichment_status = 'skipped', enrichment_error = 'no_canonical_domain'\nWHERE id = $1;",
+        "options": {
+          "queryReplacement": "={{ [$json.id] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        608,
+        272
+      ],
+      "id": "1985654d-c4fb-422d-ab28-61183d2e0453",
+      "name": "Skip (no domain)"
+    },
+    {
+      "parameters": {
+        "content": "## Section 2: per-place fan-out\n- Dedup against `seen_leads` (canonical_domain + place_id is the PK; ON CONFLICT keeps stats fresh).\n- Only NEW businesses get inserted into `gms_leads_raw` and routed onward - you never re-enrich or re-contact one you have already seen.\n- Rows missing a domain are marked `skipped` (no domain = nothing to enrich).",
+        "height": 628,
+        "width": 936,
+        "color": 4
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -96,
+        64
+      ],
+      "typeVersion": 1,
+      "id": "1f02e83a-ac13-4e43-8de7-a463cca969af",
+      "name": "Note section 2"
+    },
+    {
+      "parameters": {
+        "content": "## Section 3: Apollo enrich (FREE) + ICP score\n- Org enrich by canonical_domain - free.\n- People search per org, decision-maker titles only - free, emails come back masked.\n- ICP score (`Score ICP` node) uses rating, review count, has-website, target region, and category match. NO email signal yet, so a lead can reach 60+ without spending a credit.\n- **Edit YOUR ICP at the top of `Score ICP`**: TARGET_STATES and TARGET_CATEGORY.\n- Insert enriched with `email_status='unrevealed'`.",
+        "height": 488,
+        "width": 936,
+        "color": 6
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -96,
+        -432
+      ],
+      "typeVersion": 1,
+      "id": "6c8f18b3-c5ba-46a6-a6e0-d515b60cbf8f",
+      "name": "Note section 3"
+    },
+    {
+      "parameters": {
+        "content": "## Section 4: Reveal gate (SPENDS A CREDIT)\nDecides whether to burn one Apollo reveal credit on this contact.\n\nMust pass ALL:\n1. `should_reveal == true` (set by the Reveal gate code)\n2. `icp_score >= REVEAL_MIN_SCORE` (Config, default 60)\n3. Title matches a decision-maker (regex in Reveal gate)\n4. `reveals_used < MONTHLY_REVEAL_CAP` (Config, default 50)\n5. `apollo_person_id` is present\n\nIf gated out, the row stays in the table with `email_status='unrevealed'` and a `reveal_skipped` reason in `icp_reasons`. Nothing is lost, nothing is spent.",
+        "height": 544,
+        "width": 1352,
+        "color": 7
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -96,
+        -992
+      ],
+      "typeVersion": 1,
+      "id": "6184c23d-ffe7-4ca4-aa8a-765ba42169b3",
+      "name": "Note section 4"
+    },
+    {
+      "parameters": {
+        "content": "## Cold leads are not CRM contacts\n`gms_leads_enriched` is a cold-lead staging table. These people never asked to hear from you.\n\nKeep them OUT of your CRM. Run outbound off this table, log the sends, and promote a lead into your CRM only when they REPLY.",
+        "height": 260,
+        "width": 360,
+        "color": 3
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        1120,
+        40
+      ],
+      "typeVersion": 1,
+      "id": "b2c3d4e5-0000-4a00-9a00-cccccccccccc",
+      "name": "Note: cold leads vs CRM"
+    }
+  ],
+  "connections": {
+    "Apify webhook": {
+      "main": [
+        [
+          {
+            "node": "Ack 200",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ack 200": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config": {
+      "main": [
+        [
+          {
+            "node": "Apify SUCCEEDED?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Apify SUCCEEDED?": {
+      "main": [
+        [
+          {
+            "node": "Get dataset items",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Mark failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark failed": {
+      "main": [
+        []
+      ]
+    },
+    "Get dataset items": {
+      "main": [
+        [
+          {
+            "node": "Normalize places",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize places": {
+      "main": [
+        [
+          {
+            "node": "Dedup seen_leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dedup seen_leads": {
+      "main": [
+        [
+          {
+            "node": "New lead?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "New lead?": {
+      "main": [
+        [
+          {
+            "node": "Insert raw",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Insert raw": {
+      "main": [
+        [
+          {
+            "node": "Has domain?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has domain?": {
+      "main": [
+        [
+          {
+            "node": "Apollo: enrich org (free)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Skip (no domain)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Apollo: enrich org (free)": {
+      "main": [
+        [
+          {
+            "node": "Apollo: people search (free)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Apollo: people search (free)": {
+      "main": [
+        [
+          {
+            "node": "Score ICP (no reveal)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Score ICP (no reveal)": {
+      "main": [
+        [
+          {
+            "node": "Insert enriched",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert enriched": {
+      "main": [
+        [
+          {
+            "node": "Check reveal budget",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check reveal budget": {
+      "main": [
+        [
+          {
+            "node": "Reveal gate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reveal gate": {
+      "main": [
+        [
+          {
+            "node": "Reveal?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reveal?": {
+      "main": [
+        [
+          {
+            "node": "Apollo: REVEAL (1 credit)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Note reveal skip",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Apollo: REVEAL (1 credit)": {
+      "main": [
+        [
+          {
+            "node": "Apply reveal",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Apply reveal": {
+      "main": [
+        [
+          {
+            "node": "Mark raw enriched",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Note reveal skip": {
+      "main": [
+        [
+          {
+            "node": "Mark raw enriched",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
