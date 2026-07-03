@@ -6,6 +6,8 @@ It ships wired for Telegram, but the notification step is just a message-out nod
 
 Adapt it to your industry by editing **one node**. Cost is dominated by image generation (a few cents per post) plus a fraction of a cent for the LLM call.
 
+> **Setting up with an AI assistant?** Paste [`AI-SETUP-PROMPT.md`](AI-SETUP-PROMPT.md) into Claude / ChatGPT / Gemini and it interviews you through the whole deployment, including building your `Config` node (your vertical, five topics, and grid cycle) from scratch. Recommended.
+
 ![Workflow](assets/workflow.png)
 
 ## Flow
