@@ -11,3 +11,12 @@ Thumbs.db
 .idea/
 __pycache__/
 *.pyc
+
+# Adobe Premiere scratch / project artifacts (not template deliverables)
+*.prproj
+*.prin
+Adobe Premiere Pro Audio Previews/
+Adobe Premiere Pro Auto-Save/
+Adobe Premiere Pro Captured and Generated/
+Adobe Premiere Pro Video Previews/
+workflows/ai-product-photo-studio/assets/AI-photostudio-mobile.mp4
