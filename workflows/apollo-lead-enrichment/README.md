@@ -4,22 +4,34 @@
 
 [![Built by Agenius AI Labs](https://img.shields.io/badge/Built%20by-Agenius%20AI%20Labs-0033ff)](https://ageniuslabs.com) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-![Workflow](assets/workflow.png)
-
 ## Why this exists
 
 Buying enrichment credits by the thousand is how most people burn their budget on leads that were never going to convert. Apollo gives you a lot for free: company details from a domain, and decision-maker contacts (name, title, LinkedIn) with the email masked. The only thing that costs a credit is revealing the actual email.
 
 So this workflow does all the free work first, scores every business against your ideal customer profile using signals that cost nothing, and spends a reveal credit **only** when a lead clears your score bar, has a decision-maker title, and you are still under your monthly cap. Everything else lands in the table unrevealed, ready for a manual reveal later if you want it.
 
-## Two parts
+## The two workflows
 
-The pipeline ships as two n8n workflows that hand off automatically:
+The pipeline ships as two n8n workflows that hand off automatically. Import both, attach your credentials, and a single form submission runs the whole thing end to end. There is also a read-only [`viewer/`](viewer/) to browse the leads that land.
 
-- **Part 1, `1-gms-scrape-start.json`** - a form (vertical, search terms, location, max per search) that records the run, launches the Apify Google Maps scraper, and registers Apify's run-finished webhook. Nothing to poll.
-- **Part 2, `2-apollo-lead-enrichment.json`** - the enrichment + scoring + credit-gated reveal. Apify calls it directly when the scrape finishes.
+### Part 1 - `1-gms-scrape-start.json` (the trigger)
 
-Import both, attach your credentials, and a form submission runs the whole thing end to end. There is also a read-only [`viewer/`](viewer/) to browse the leads that land.
+![Part 1: scrape start](assets/scrape-start.png)
+
+A short form (vertical, search terms, location, max per search) records the run, launches the Apify Google Maps scraper, and registers Apify's run-finished webhook via a base64 `webhooks` query param. When the scrape finishes, Apify calls Part 2 directly. No polling, no guessed wait times.
+
+### Part 2 - `2-apollo-lead-enrichment.json` (enrich, score, reveal)
+
+![Part 2: enrich, score, reveal](assets/workflow.png)
+
+Dedup, free Apollo enrichment, ICP scoring, and the credit-gated reveal. Four labeled sections, documented inline on the canvas:
+
+| Section | What it does |
+|---|---|
+| **Intake** | Webhook -> ack 200 -> Config -> check the run succeeded (else mark the run failed). |
+| **Per-place fan-out** | Fetch the dataset, normalize each place, dedup against `seen_leads`, insert new raw rows, skip rows with no domain. |
+| **Apollo enrich (FREE) + ICP score** | Org enrich + people search (both free, masked emails), then score against your ICP. Insert enriched rows as `unrevealed`. |
+| **Reveal gate (SPENDS A CREDIT)** | Check the monthly budget, gate on score + title + cap, reveal the email for winners only, note the skip reason for the rest. |
 
 ## What it does
 
@@ -106,17 +118,6 @@ Content-Type: application/json
 ```
 
 Part 1 (`1-gms-scrape-start.json`) is exactly this reference implementation: it inserts the `gms_runs` row, then base64-encodes a `webhooks` array onto the Apify run POST so Apify fires the contract above on finish, with `run_pk` and `resource.defaultDatasetId` mapped straight into `dataset_id`. (One gotcha it handles for you: Apify only interpolates `{{resource.status}}` style variables when they are left **unquoted** in the payload template.)
-
-## What is in the workflow
-
-Four labeled sections, documented inline on the canvas:
-
-| Section | What it does |
-|---|---|
-| **Intake** | Webhook -> ack 200 -> Config -> check the run succeeded (else mark the run failed). |
-| **Section 2: per-place fan-out** | Fetch the dataset, normalize each place, dedup against `seen_leads`, insert new raw rows, skip rows with no domain. |
-| **Section 3: Apollo enrich (FREE) + ICP score** | Org enrich + people search (both free, masked emails), then score against your ICP. Insert enriched rows as `unrevealed`. |
-| **Section 4: Reveal gate (SPENDS A CREDIT)** | Check the monthly budget, gate on score + title + cap, reveal the email for winners only, note the skip reason for the rest. |
 
 ## Customize
 
