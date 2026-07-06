@@ -35,6 +35,8 @@ Dedup, free Apollo enrichment, ICP scoring, and the credit-gated reveal. Four la
 
 ### Part 3 - `3-manual-reveal.json` (optional on-demand reveal)
 
+![Part 3: manual reveal](assets/manual-reveal.png)
+
 Part 2 leaves most contacts unrevealed on purpose. Part 3 is a small webhook that reveals one when you ask: `POST /webhook/manual-reveal` with a `lead_id` and a shared token, and it does the Apollo reveal plus the DB update for that single lead. The read-only [`viewer/`](viewer/) uses it to show a **Reveal** button next to unrevealed contacts, so you never put your Apollo key or a write connection in the viewer. Optional; skip it if you only want automatic reveals. Note: manual reveals are deliberate (one click, one credit) and are not bound by the Part 2 monthly cap, so keep the token private.
 
 ## What it does
