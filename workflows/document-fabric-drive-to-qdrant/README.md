@@ -1,4 +1,4 @@
-# Document Fabric — Drive to Qdrant Ingest
+# Document Fabric: Drive to Qdrant Ingest
 
 The ingestion half of a high-accuracy RAG pipeline. Drop a document into a Google Drive folder and it gets normalized, tagged, chunked, embedded, and made searchable in Qdrant, automatically.
 

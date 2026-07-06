@@ -1,12 +1,12 @@
--- Lead Enrichment - Apollo (credit-aware)
+-- Apollo Lead Enrichment (credit-aware)
 -- Postgres schema for the cold-lead pipeline.
 --
 -- Run this once against your database before importing the workflow. It creates
 -- a dedicated `cold_outreach` schema and four tables:
---   gms_runs           - one row per scrape run (you create the row, pass its id as run_pk)
---   seen_leads         - dedup ledger so a business is never enriched or contacted twice
---   gms_leads_raw      - raw normalized rows from the Google Maps scrape
---   gms_leads_enriched - Apollo-enriched contacts + ICP score (this is your cold-lead table)
+--   gms_runs           : one row per scrape run (you create the row, pass its id as run_pk)
+--   seen_leads         : dedup ledger so a business is never enriched or contacted twice
+--   gms_leads_raw      : raw normalized rows from the Google Maps scrape
+--   gms_leads_enriched : Apollo-enriched contacts + ICP score (this is your cold-lead table)
 --
 -- Point the workflow's Postgres credential at this database. Every query in the
 -- workflow is schema-qualified (cold_outreach.*), so no search_path change is needed.

@@ -20,11 +20,11 @@ The agent produces a deep-dive document with eight sections: thesis, step-by-ste
 
 ## Swap models to compare
 
-The model is an **AI Agent** node, so any chat model plugs into it. The template ships three set up as alternates — **Anthropic Claude Sonnet 4.5**, **OpenAI GPT-5**, and a **local Ollama (Qwen)** — so you can run the same transcript through each and compare quality, speed, and cost. An agent uses one model at a time: drag a different model's connector onto the agent's **Chat Model** input to switch.
+The model is an **AI Agent** node, so any chat model plugs into it. The template ships three set up as alternates, **Anthropic Claude Sonnet 4.5**, **OpenAI GPT-5**, and a **local Ollama (Qwen)**, so you can run the same transcript through each and compare quality, speed, and cost. An agent uses one model at a time: drag a different model's connector onto the agent's **Chat Model** input to switch.
 
 ## Why a captions service (not the YouTube API)
 
-YouTube's official Data API `captions.download` only works for videos **you own** (OAuth). To transcribe any public link you need [yt-dlp](https://github.com/yt-dlp/yt-dlp), which discovers and downloads the caption track YouTube already serves. Running yt-dlp inside n8n is awkward (and impossible on n8n Cloud), so this template calls a tiny HTTP service that wraps it. The service lives in [`service/`](service/) — build it and point the workflow at it.
+YouTube's official Data API `captions.download` only works for videos **you own** (OAuth). To transcribe any public link you need [yt-dlp](https://github.com/yt-dlp/yt-dlp), which discovers and downloads the caption track YouTube already serves. Running yt-dlp inside n8n is awkward (and impossible on n8n Cloud), so this template calls a tiny HTTP service that wraps it. The service lives in [`service/`](service/); build it and point the workflow at it.
 
 Captions-only: no Whisper/GPU. Videos with captions disabled return a `422` and the run fails cleanly.
 
@@ -37,18 +37,18 @@ Captions-only: no Whisper/GPU. Videos with captions disabled return a `422` and 
 
 ## Setup
 
-1. **Deploy the service** — see [`service/README.md`](service/README.md). Note its URL.
+1. **Deploy the service**: see [`service/README.md`](service/README.md). Note its URL.
 2. **Import** `youtube-to-knowledge.json` into n8n.
-3. **Fetch Transcript** — set the URL to your service, e.g. `http://ytdlp-captions:8080/transcript`.
-4. **AI Agent** — attach a chat model. Open one of the model nodes (Anthropic / OpenAI / Ollama), add your credential, and confirm its connector runs to the agent's **Chat Model** input. Only the connected model runs.
-5. **Save to Google Drive** — attach your **Google Drive** credential and set the target folder (`YOUR_DRIVE_FOLDER_ID`).
+3. **Fetch Transcript**: set the URL to your service, e.g. `http://ytdlp-captions:8080/transcript`.
+4. **AI Agent**: attach a chat model. Open one of the model nodes (Anthropic / OpenAI / Ollama), add your credential, and confirm its connector runs to the agent's **Chat Model** input. Only the connected model runs.
+5. **Save to Google Drive**: attach your **Google Drive** credential and set the target folder (`YOUR_DRIVE_FOLDER_ID`).
 6. Open the form's **Production URL** and paste a link.
 
 The sticky notes on the canvas walk through each stage and the captions-service Docker setup.
 
 ## AI-assisted setup
 
-Not sure how to wire it against your own stack? See [`AI-SETUP-PROMPT.md`](AI-SETUP-PROMPT.md) — paste the block into any reasoning LLM and it interviews you through deployment.
+Not sure how to wire it against your own stack? See [`AI-SETUP-PROMPT.md`](AI-SETUP-PROMPT.md): paste the block into any reasoning LLM and it interviews you through deployment.
 
 ## Customize
 

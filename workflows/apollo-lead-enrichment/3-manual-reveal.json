@@ -3,7 +3,7 @@
   "nodes": [
     {
       "parameters": {
-        "content": "# Part 3 · Manual Reveal\n\nOptional on-demand reveal. Part 2 leaves most contacts **unrevealed**; this webhook reveals one when asked, so the read-only `viewer/` can offer a **Reveal** button without holding your Apollo key or writing the database.\n\n**Before activating:** attach the **Postgres** credential on both DB nodes and your **Apollo** `X-Api-Key` credential on the reveal node; set `REVEAL_TOKEN` in **Config** to a secret. Manual reveals are deliberate (one click, one credit) and are **not** bounded by the Part 2 monthly cap, so keep the token private.",
+        "content": "# Part 3: Manual Reveal\n\nOptional on-demand reveal. Part 2 leaves most contacts **unrevealed**; this webhook reveals one when asked, so the read-only `viewer/` can offer a **Reveal** button without holding your Apollo key or writing the database.\n\n**Before activating:** attach the **Postgres** credential on both DB nodes and your **Apollo** `X-Api-Key` credential on the reveal node; set `REVEAL_TOKEN` in **Config** to a secret. Manual reveals are deliberate (one click, one credit) and are **not** bounded by the Part 2 monthly cap, so keep the token private.",
         "height": 400,
         "width": 1900,
         "color": 5

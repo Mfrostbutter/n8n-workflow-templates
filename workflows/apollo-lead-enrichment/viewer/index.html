@@ -182,7 +182,7 @@ async function loadLeads(){
   for(const r of d.rows){
     const tr = document.createElement("tr");
     tr.className = "lead"; tr.onclick = ()=>toggle(tr, r.id);
-    const name = [r.first_name,r.last_name].filter(Boolean).join(" ") || '<span style="color:var(--mute)">—</span>';
+    const name = [r.first_name,r.last_name].filter(Boolean).join(" ") || '<span style="color:var(--mute)">-</span>';
     const li = r.person_linkedin_url || r.linkedin_url;
     const emailCell = r.email
       ? `<a href="mailto:${esc(r.email)}">${esc(r.email)}</a>`
@@ -191,14 +191,14 @@ async function loadLeads(){
           : `<span class="email masked">masked</span>`);
     tr.innerHTML =
       `<td><span class="score" style="${scoreColor(r.icp_score)}">${r.icp_score??0}</span></td>`+
-      `<td class="firm"><strong>${esc(r.firm_name||r.canonical_domain||"—")}</strong>`+
+      `<td class="firm"><strong>${esc(r.firm_name||r.canonical_domain||"-")}</strong>`+
         `<small>${esc(r.canonical_domain||"")}</small></td>`+
       `<td>${name}${li?` · <a href="${esc(li)}" target="_blank" rel="noopener">in</a>`:""}</td>`+
       `<td>${esc(r.title||"")}<br><small style="color:var(--dim)">${esc(r.seniority||"")}</small></td>`+
       `<td>${emailCell}</td>`+
-      `<td><span class="pill ${esc(r.email_status||"")}">${esc(r.email_status||"—")}</span></td>`+
+      `<td><span class="pill ${esc(r.email_status||"")}">${esc(r.email_status||"-")}</span></td>`+
       `<td>${esc(r.industry||r.practice_area||"")}</td>`+
-      `<td><span class="pill">#${r.run_id??"—"}</span></td>`;
+      `<td><span class="pill">#${r.run_id??"-"}</span></td>`;
     tb.appendChild(tr);
   }
   renderPager();

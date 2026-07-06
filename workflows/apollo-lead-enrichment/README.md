@@ -1,4 +1,4 @@
-# Lead Enrichment - Apollo (credit-aware)
+# Apollo Lead Enrichment (credit-aware)
 
 > Turn a raw Google Maps business scrape into a scored, deduplicated cold-lead table. Enrich every business through Apollo's **free** endpoints, score each against your ICP for free, and spend a paid email-reveal credit only on the highest-conviction contacts, under a hard monthly cap.
 
@@ -12,15 +12,15 @@ So this workflow does all the free work first, scores every business against you
 
 ## The workflows
 
-The pipeline ships as three n8n workflows: Parts 1 and 2 hand off automatically to run it end to end, and Part 3 is an optional on-demand reveal. Import what you need, attach your credentials, and a single form submission runs the whole thing. There is also a read-only [`viewer/`](viewer/) to browse the leads that land (and, with Part 3 wired, reveal them on demand).
+The pipeline ships as three n8n workflows: Parts 1 and 2 hand off automatically to run it end to end, and Part 3 is an optional on-demand reveal. Import what you need, attach your credentials, and a single form submission runs the whole thing. There is also a read-only [`viewer/`](viewer/) to browse the leads that land (and, with Part 3 wired, reveal them on demand). Once leads are landing, the [**cold email outbound**](../cold-email-outbound/) template turns the table into an AI-written follow-up sequence.
 
-### Part 1 - `1-gms-scrape-start.json` (the trigger)
+### Part 1: `1-gms-scrape-start.json` (the trigger)
 
 ![Part 1: scrape start](assets/scrape-start.png)
 
 A short form (vertical, search terms, location, max per search) records the run, launches the Apify Google Maps scraper, and registers Apify's run-finished webhook via a base64 `webhooks` query param. When the scrape finishes, Apify calls Part 2 directly. No polling, no guessed wait times.
 
-### Part 2 - `2-apollo-lead-enrichment.json` (enrich, score, reveal)
+### Part 2: `2-apollo-lead-enrichment.json` (enrich, score, reveal)
 
 ![Part 2: enrich, score, reveal](assets/workflow.png)
 
@@ -33,7 +33,7 @@ Dedup, free Apollo enrichment, ICP scoring, and the credit-gated reveal. Four la
 | **Apollo enrich (FREE) + ICP score** | Org enrich + people search (both free, masked emails), then score against your ICP. Insert enriched rows as `unrevealed`. |
 | **Reveal gate (SPENDS A CREDIT)** | Check the monthly budget, gate on score + title + cap, reveal the email for winners only, note the skip reason for the rest. |
 
-### Part 3 - `3-manual-reveal.json` (optional on-demand reveal)
+### Part 3: `3-manual-reveal.json` (optional on-demand reveal)
 
 ![Part 3: manual reveal](assets/manual-reveal.png)
 
@@ -71,6 +71,10 @@ The pattern that keeps things clean:
 - A lead becomes a real CRM contact **only when they reply**. That is the moment they stop being cold.
 
 This one boundary is why the workflow writes to its own schema and never assumes a CRM on the other end. Wire the reply-to-CRM promotion however your stack does it.
+
+## Next: send to these leads
+
+This template stops at the cold-lead table on purpose. To actually work the list, the [**cold email outbound**](../cold-email-outbound/) template picks up where this one leaves off: it emails your best leads on an AI-written follow-up sequence, stops the instant someone replies, bounces, or unsubscribes, and promotes replies into your CRM. It is the reply-to-CRM boundary above, built out. Same Postgres database, four more tables.
 
 ## What you need
 
@@ -113,8 +117,8 @@ Then, in the **`Apollo: people search`** node and the **`Reveal gate`** node, ad
 
 ### 5. Set your budget
 Open the **`Config`** node:
-- `MONTHLY_REVEAL_CAP` (default 50) - match your Apollo credit allowance.
-- `REVEAL_MIN_SCORE` (default 60) - the ICP score a lead must hit before you spend a credit.
+- `MONTHLY_REVEAL_CAP` (default 50): match your Apollo credit allowance.
+- `REVEAL_MIN_SCORE` (default 60): the ICP score a lead must hit before you spend a credit.
 
 ### 6. Activate both workflows
 Turn on Part 1 and Part 2. Submit Part 1's form and the run flows straight through to enriched leads. Watch them land with the [`viewer/`](viewer/).

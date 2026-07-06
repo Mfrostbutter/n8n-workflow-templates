@@ -1,5 +1,5 @@
 {
-  "name": "Document Fabric — Drive to Qdrant Ingest",
+  "name": "Document Fabric: Drive to Qdrant Ingest",
   "nodes": [
     {
       "parameters": {

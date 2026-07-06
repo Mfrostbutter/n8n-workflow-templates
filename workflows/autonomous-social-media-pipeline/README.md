@@ -47,14 +47,14 @@ The design is fully **config-driven**: the five content topics used to live in f
 - **Telegram** on `KIE Error` and `Success Notification`.
 
 ### 3. Set n8n variables (Settings → Variables)
-- `AIRTABLE_PAT` — Airtable personal access token
-- `META_PAGE_ACCESS_TOKEN` — long-lived Meta Page access token
+- `AIRTABLE_PAT`: Airtable personal access token
+- `META_PAGE_ACCESS_TOKEN`: long-lived Meta Page access token
 
 ### 4. Configure your vertical (the important step)
-Open the **Config** node — it's the only node with industry-specific content. Set:
-- `vertical`, `brand`, `brandVoice` — who you are and what space you're in
-- `topics` — your **five** content topics, each with a `label`, an `angle` (editorial instruction), `subtopics` (rotated for variety), and `hashtags`
-- `cycle` — the 12-slot posting pattern, referencing your topic keys (`t1`–`t5`)
+Open the **Config** node, it's the only node with industry-specific content. Set:
+- `vertical`, `brand`, `brandVoice`: who you are and what space you're in
+- `topics`: your **five** content topics, each with a `label`, an `angle` (editorial instruction), `subtopics` (rotated for variety), and `hashtags`
+- `cycle`: the 12-slot posting pattern, referencing your topic keys (`t1`-`t5`)
 
 Then fill the placeholders, also in `Config`: `YOUR_TELEGRAM_CHAT_ID`, `YOUR_AIRTABLE_BASE_ID`, `YOUR_AIRTABLE_TABLE_ID`, `YOUR_META_PAGE_ID`, `YOUR_META_IG_USER_ID`. Finally, replace `YOUR_AIRTABLE_BASE_ID` / `YOUR_AIRTABLE_TABLE_ID` in the URLs of the three Airtable HTTP nodes (`Fetch Last Record`, `Fetch Past Topics`, `Log to Airtable`).
 

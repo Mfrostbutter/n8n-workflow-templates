@@ -14,10 +14,10 @@ The product on the left is a phone snapshot. The one on the right came out of th
 Upload a photo  →  pick scene + ratio  →  describe the scene  →  download the result
 ```
 
-- **Pick a Photo** — jpg, png, or webp, straight from the n8n form.
-- **Photo Type** — Flatlay, Hero Image, Ecommerce, or Banner. Each one steers the lighting and composition.
-- **Aspect Ratio** — 1:1, 9:16, 16:9, 4:5, 5:4, 21:9.
-- **Describe the Scene** — one line of plain English. Optional. An OpenAI agent expands it into a full photography prompt for you.
+- **Pick a Photo**: jpg, png, or webp, straight from the n8n form.
+- **Photo Type**: Flatlay, Hero Image, Ecommerce, or Banner. Each one steers the lighting and composition.
+- **Aspect Ratio**: 1:1, 9:16, 16:9, 4:5, 5:4, 21:9.
+- **Describe the Scene**: one line of plain English. Optional. An OpenAI agent expands it into a full photography prompt for you.
 
 The finished image is shown on the form's completion screen with a download link.
 
@@ -25,8 +25,8 @@ The finished image is shown on the form's completion screen with a download link
 
 Two credentials. That's the whole setup.
 
-1. **[KIE.AI](https://kie.ai)** API key — runs the image upload, generation, and polling. This is where the per-image cost lands.
-2. **OpenAI** API key — turns your one-line scene into a detailed, model-ready photography prompt. Uses `gpt-4.1-mini` by default.
+1. **[KIE.AI](https://kie.ai)** API key: runs the image upload, generation, and polling. This is where the per-image cost lands.
+2. **OpenAI** API key: turns your one-line scene into a detailed, model-ready photography prompt. Uses `gpt-4.1-mini` by default.
 
 You also need an n8n instance ([self-hosted](https://docs.n8n.io/hosting/) or [Cloud](https://n8n.io/cloud/)). Everything else is in the workflow file.
 

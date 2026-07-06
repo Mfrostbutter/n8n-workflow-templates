@@ -1,0 +1,157 @@
+{
+  "name": "GMS Outbound Enroller (Apollo lead pipeline, part 4a)",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "# Part 4a: Outbound Enroller\n\n**What this does:** once an hour it picks your best unworked leads and lines them up for the email sequence. It does not send anything itself. It just gets leads ready so Part 4b can email them.\n\n**Who counts as ready:** a lead with a real (verified) email, an ICP score at or above your floor, that you have not already enrolled and have not suppressed. It takes the highest scorers first, and only a handful per day, so a fresh sending domain warms up instead of getting flagged as spam.\n\n**Set it up once:**\n1. Run `sql/outbound.sql` to create the outbound tables.\n2. Attach your **Postgres** credential to the two database nodes.\n3. Attach a **ListMonk** (HTTP Basic Auth) credential to `upsertSubscriber`.\n4. Open `config` and set your ListMonk URL, list id, score floor, and daily enrollment cap. You can also set these in the `cold_outreach.outreach_config` table; the table wins when it has a row.",
+        "height": 240,
+        "width": 1960,
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-980, -360],
+      "id": "doc",
+      "name": "Doc"
+    },
+    {
+      "parameters": {
+        "content": "## ① Read your settings\n\n`config` is where you edit the knobs: campaign name, score floor, how many new leads to enroll per day, and your ListMonk URL and list id.\n\n`readConfig` looks up the same knobs in the `outreach_config` table, and `resolveConfig` merges the two so a value in the table overrides the default in `config`. Keeping them in both places lets you tune volume from the database without opening the workflow.",
+        "height": 500,
+        "width": 900,
+        "color": 4
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-980, -100],
+      "id": "s1",
+      "name": "Section 1"
+    },
+    {
+      "parameters": {
+        "content": "## ② Pick leads and line them up\n\n`selectEligibleLeads` runs the query that finds ready leads (verified email, high score, not already enrolled, not suppressed) and caps the batch to whatever is left of today's enrollment budget.\n\n`upsertSubscriber` adds each one to ListMonk so there is a subscriber to send to later. If the person is already there, that is fine, it just keeps going.\n\n`insertOutreachState` writes the lead into `outreach_state` at step 0 and marks it due now, which is the signal Part 4b watches for.",
+        "height": 500,
+        "width": 820,
+        "color": 3
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-60, -100],
+      "id": "s2",
+      "name": "Section 2"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            { "field": "hours", "hoursInterval": 1 }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [-920, 140],
+      "id": "sched",
+      "name": "scheduleTrigger"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            { "id": "a", "name": "campaign", "type": "string", "value": "default" },
+            { "id": "b", "name": "minScore", "type": "number", "value": 60 },
+            { "id": "c", "name": "maxNewPerDay", "type": "number", "value": 20 },
+            { "id": "d", "name": "listmonkBaseUrl", "type": "string", "value": "https://listmonk.example.com" },
+            { "id": "e", "name": "listmonkListId", "type": "number", "value": 1 }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [-720, 140],
+      "id": "cfg",
+      "name": "config"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT campaign, min_score, max_new_per_day FROM cold_outreach.outreach_config WHERE id = 1;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [-520, 140],
+      "id": "readcfg",
+      "name": "readConfig",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const c = $('config').first().json;\nconst r = $input.first();\nconst t = (r && r.json) ? r.json : {};\nreturn [{ json: {\n  campaign: t.campaign != null ? t.campaign : c.campaign,\n  minScore: t.min_score != null ? t.min_score : c.minScore,\n  maxNewPerDay: t.max_new_per_day != null ? t.max_new_per_day : c.maxNewPerDay,\n  listmonkBaseUrl: c.listmonkBaseUrl,\n  listmonkListId: c.listmonkListId\n} }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-320, 140],
+      "id": "resolvecfg",
+      "name": "resolveConfig"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT e.id, e.email, e.firm_name, e.firm_short_name, e.first_name, e.title, e.canonical_domain, e.icp_score\nFROM cold_outreach.gms_leads_enriched e\nWHERE e.email_status = 'verified'\n  AND e.email IS NOT NULL\n  AND e.icp_score >= $1\n  AND NOT EXISTS (SELECT 1 FROM cold_outreach.outreach_state s WHERE s.lead_id = e.id)\n  AND NOT EXISTS (SELECT 1 FROM cold_outreach.suppression sup WHERE lower(sup.email) = lower(e.email))\nORDER BY e.icp_score DESC\nLIMIT GREATEST(0, $2 - (SELECT count(*) FROM cold_outreach.outreach_state WHERE enrolled_at >= date_trunc('day', now())));",
+        "options": {
+          "queryReplacement": "={{ [ $('resolveConfig').first().json.minScore, $('resolveConfig').first().json.maxNewPerDay ] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [-60, 140],
+      "id": "selecteligible",
+      "name": "selectEligibleLeads"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('resolveConfig').first().json.listmonkBaseUrl }}/api/subscribers",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"email\": \"{{ $json.email }}\",\n  \"name\": \"{{ $json.first_name || $json.firm_name || $json.email }}\",\n  \"status\": \"enabled\",\n  \"lists\": [ {{ $('resolveConfig').first().json.listmonkListId }} ],\n  \"preconfirm_subscriptions\": true,\n  \"attribs\": {\n    \"firm_name\": \"{{ $json.firm_name }}\",\n    \"firm_short_name\": \"{{ $json.firm_short_name }}\",\n    \"first_name\": \"{{ $json.first_name }}\",\n    \"title\": \"{{ $json.title }}\",\n    \"domain\": \"{{ $json.canonical_domain }}\"\n  }\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [160, 140],
+      "id": "upsertsub",
+      "name": "upsertSubscriber",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO cold_outreach.outreach_state (lead_id, campaign, status, sequence_step, next_send_at, enrolled_at)\nVALUES ($1, $2, 'in_sequence', 0, now(), now())\nON CONFLICT (lead_id) DO NOTHING;",
+        "options": {
+          "queryReplacement": "={{ [ $('selectEligibleLeads').item.json.id, $('resolveConfig').first().json.campaign ] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [380, 140],
+      "id": "insertstate",
+      "name": "insertOutreachState"
+    }
+  ],
+  "connections": {
+    "scheduleTrigger": { "main": [ [ { "node": "config", "type": "main", "index": 0 } ] ] },
+    "config": { "main": [ [ { "node": "readConfig", "type": "main", "index": 0 } ] ] },
+    "readConfig": { "main": [ [ { "node": "resolveConfig", "type": "main", "index": 0 } ] ] },
+    "resolveConfig": { "main": [ [ { "node": "selectEligibleLeads", "type": "main", "index": 0 } ] ] },
+    "selectEligibleLeads": { "main": [ [ { "node": "upsertSubscriber", "type": "main", "index": 0 } ] ] },
+    "upsertSubscriber": { "main": [ [ { "node": "insertOutreachState", "type": "main", "index": 0 } ] ] }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

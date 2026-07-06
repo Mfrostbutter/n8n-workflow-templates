@@ -1,5 +1,5 @@
 {
-  "name": "Lead Enrichment - Apollo (credit-aware)",
+  "name": "GMS Lead Enrichment (Apollo lead pipeline, part 2)",
   "nodes": [
     {
       "parameters": {

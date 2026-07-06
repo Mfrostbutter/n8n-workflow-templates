@@ -1,0 +1,185 @@
+{
+  "name": "GMS Outbound Events (Apollo lead pipeline, part 4c)",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "# Part 4c: Outbound Events\n\n**What this does:** this is the part that listens for what happens after you send. It watches for two things, and both share one goal: stop emailing that person.\n\n- Someone **replies** to your email. This stops their sequence and pushes them into your CRM. A reply is the moment a cold lead becomes worth tracking, so it is the only thing that crosses into your CRM.\n- Mailgun reports a **bounce, spam complaint, or unsubscribe**. This stops their sequence and adds them to a permanent do-not-email list.\n\n**Set it up once:**\n1. Attach **Postgres** to the database nodes and an **IMAP** credential to `imapTrigger` (the inbox you send from).\n2. In Mailgun, point its event webhook at `POST /webhook/mailgun-events`.\n3. On `promoteToCrm`, set your CRM's webhook URL, or swap the node for a HubSpot one to write the contact directly.\n4. Before you go live, add signature checking to the Mailgun webhook so only Mailgun can trigger it.",
+        "height": 240,
+        "width": 2200,
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-1200, -300],
+      "id": "doc",
+      "name": "Doc"
+    },
+    {
+      "parameters": {
+        "content": "## ① A reply comes in → stop and hand off\n\n`imapTrigger` fires when a new email lands in your sending inbox. `extractReply` reads who it is from and grabs a short snippet of what they said.\n\n`findLeadByReply` matches that address to a lead still in a sequence. `markReplied` stops their drip, marks them replied, and adds them to the suppression list so they are never emailed again.\n\n`buildCrmPayload` and `promoteToCrm` send the contact plus their reply over to your CRM. This is the only path that puts anyone into your CRM.",
+        "height": 360,
+        "width": 2100,
+        "color": 4
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-1200, -40],
+      "id": "s1",
+      "name": "Section 1"
+    },
+    {
+      "parameters": {
+        "content": "## ② Mailgun reports a problem → suppress\n\n`mailgunWebhook` receives Mailgun's delivery events. `parseMailgunEvent` keeps only the ones that mean stop (a hard bounce, a spam complaint, or an unsubscribe) and ignores the rest.\n\n`applyEvent` stops that lead's sequence and adds the address to the shared suppression list, the same list Parts 4a and 4b check before they ever enroll or email anyone. `ackEvent` sends Mailgun a 200 so it knows the event was received.",
+        "height": 300,
+        "width": 2100,
+        "color": 6
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-1200, 340],
+      "id": "s2",
+      "name": "Section 2"
+    },
+    {
+      "parameters": {
+        "format": "simple",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.emailReadImap",
+      "typeVersion": 2,
+      "position": [-1140, 140],
+      "id": "imap",
+      "name": "imapTrigger"
+    },
+    {
+      "parameters": {
+        "jsCode": "const out=[];for(const it of $input.all()){const j=it.json;let from=(j.from||j.From||'');if(from&&typeof from==='object'){from=(from.value&&from.value[0]&&from.value[0].address)||(from.text||'');}const m=String(from).match(/<([^>]+)>/);const email=(m?m[1]:String(from)).trim().toLowerCase();const snippet=String(j.textPlain||j.text||j.subject||'').slice(0,500);if(!email){continue;}out.push({json:{email,snippet}});}return out;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-920, 140],
+      "id": "extractreply",
+      "name": "extractReply"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT s.lead_id, e.firm_name, e.canonical_domain, e.first_name, e.title, e.email, e.icp_score\nFROM cold_outreach.outreach_state s\nJOIN cold_outreach.gms_leads_enriched e ON e.id = s.lead_id\nWHERE lower(e.email) = $1 AND s.status = 'in_sequence'\nLIMIT 1;",
+        "options": {
+          "queryReplacement": "={{ [ $json.email ] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [-700, 140],
+      "id": "findreply",
+      "name": "findLeadByReply"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH upd AS (\n  UPDATE cold_outreach.outreach_state\n  SET status = 'replied', replied_at = now(), next_send_at = NULL\n  WHERE lead_id = $1\n  RETURNING lead_id\n), sup AS (\n  INSERT INTO cold_outreach.suppression (email, reason)\n  VALUES ($2, 'replied')\n  ON CONFLICT (email) DO NOTHING\n  RETURNING email\n)\nSELECT $1::bigint AS lead_id;",
+        "options": {
+          "queryReplacement": "={{ [ $json.lead_id, $json.email ] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [-480, 140],
+      "id": "markreplied",
+      "name": "markReplied"
+    },
+    {
+      "parameters": {
+        "jsCode": "const l=$('findLeadByReply').first().json;const rep=$('extractReply').first().json;return [{json:{source:'cold-outreach',firm_name:l.firm_name||'',canonical_domain:l.canonical_domain||'',contact_first_name:l.first_name||'',contact_title:l.title||'',email:l.email||'',icp_score:l.icp_score||0,first_reply_snippet:(rep&&rep.snippet)||'',campaign:'default'}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-240, 140],
+      "id": "buildcrm",
+      "name": "buildCrmPayload"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://your-crm-webhook.example.com/inbound",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [0, 140],
+      "id": "promotecrm",
+      "name": "promoteToCrm",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "mailgun-events",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [-1140, 460],
+      "id": "mgwh",
+      "name": "mailgunWebhook",
+      "webhookId": "mailgun-events"
+    },
+    {
+      "parameters": {
+        "jsCode": "const j=($input.first()&&$input.first().json)||{};const ed=(j['event-data']||j.eventData||{});const ev=String(ed.event||'').toLowerCase();const rcpt=String(ed.recipient||'').toLowerCase();let status=null,reason=null;if(ev==='failed'){status='bounced';reason='bounced';}else if(ev==='complained'){status='bounced';reason='complaint';}else if(ev==='unsubscribed'){status='unsubscribed';reason='unsubscribed';}if(!status||!rcpt){return [];}return [{json:{email:rcpt,status,reason}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-920, 460],
+      "id": "parsemg",
+      "name": "parseMailgunEvent"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH upd AS (\n  UPDATE cold_outreach.outreach_state s\n  SET status = $2, next_send_at = NULL,\n      bounced_at = CASE WHEN $2 = 'bounced' THEN now() ELSE bounced_at END,\n      unsubscribed_at = CASE WHEN $2 = 'unsubscribed' THEN now() ELSE unsubscribed_at END\n  FROM cold_outreach.gms_leads_enriched e\n  WHERE e.id = s.lead_id AND lower(e.email) = $1\n  RETURNING s.lead_id\n)\nINSERT INTO cold_outreach.suppression (email, reason)\nVALUES ($1, $3)\nON CONFLICT (email) DO NOTHING;",
+        "options": {
+          "queryReplacement": "={{ [ $json.email, $json.status, $json.reason ] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [-700, 460],
+      "id": "applyevent",
+      "name": "applyEvent"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            { "id": "a", "name": "ok", "type": "boolean", "value": true }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [-480, 460],
+      "id": "ack",
+      "name": "ackEvent"
+    }
+  ],
+  "connections": {
+    "imapTrigger": { "main": [ [ { "node": "extractReply", "type": "main", "index": 0 } ] ] },
+    "extractReply": { "main": [ [ { "node": "findLeadByReply", "type": "main", "index": 0 } ] ] },
+    "findLeadByReply": { "main": [ [ { "node": "markReplied", "type": "main", "index": 0 } ] ] },
+    "markReplied": { "main": [ [ { "node": "buildCrmPayload", "type": "main", "index": 0 } ] ] },
+    "buildCrmPayload": { "main": [ [ { "node": "promoteToCrm", "type": "main", "index": 0 } ] ] },
+    "mailgunWebhook": { "main": [ [ { "node": "parseMailgunEvent", "type": "main", "index": 0 } ] ] },
+    "parseMailgunEvent": { "main": [ [ { "node": "applyEvent", "type": "main", "index": 0 } ] ] },
+    "applyEvent": { "main": [ [ { "node": "ackEvent", "type": "main", "index": 0 } ] ] }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

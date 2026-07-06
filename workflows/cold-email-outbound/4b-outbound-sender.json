@@ -1,0 +1,277 @@
+{
+  "name": "GMS Outbound Sender (Apollo lead pipeline, part 4b)",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "# Part 4b: Outbound Sender\n\n**What this does:** this is the part that actually emails people. On a schedule it finds the leads whose next message is due, has an AI model write each email fresh from that lead's details and the step's intent, sends it through ListMonk and Mailgun, then records it and schedules the follow-up.\n\n**Why a model writes it:** one fixed template sent to hundreds of people reads cold and all lands the same. You give the model your offer and your voice once in `config`, and it personalizes every send using only the real facts about each business. Unique content per email also helps deliverability.\n\n**The guardrails that protect your domain:** it only sends during the hours you choose, never more than your daily cap, and walks a 0 / 3 / 5 day sequence. Any lead stops the moment they reply, bounce, or unsubscribe (Part 4c handles that).\n\n**Set it up once:**\n1. Attach **Postgres** to the DB nodes, a **ListMonk** (HTTP Basic Auth) credential to `sendViaListmonk`, and your **LLM** credential (Anthropic by default, an x-api-key header auth) to `generateMessage`.\n2. In ListMonk, point its email messenger at **Mailgun**, and make ONE transactional template that renders `{{ .Tx.Data.body }}` plus your unsubscribe footer. Put its id in `config` as `shellTemplateId`.\n3. In `config`, set your from name/address, your `offer` and `cta` (your voice), the `model`, daily cap, send window, and the per-step intent lines in the sequence.",
+        "height": 340,
+        "width": 2820,
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-1180, -460],
+      "id": "doc",
+      "name": "Doc"
+    },
+    {
+      "parameters": {
+        "content": "## ① Load settings and decide whether to send\n\n`config` holds your knobs, your sending identity, your offer and voice, the model, and the 0/3/5 sequence (each step is an intent line, not a fixed subject). `readConfig` and `countSentToday` pull any table overrides and how many emails have gone out today.\n\n`resolveConfig` works out how many sends you have left in today's budget and whether the clock is inside your send window. `guardSend` is the gate. Outside your hours or already at your cap, the run stops here and sends nothing.",
+        "height": 560,
+        "width": 1080,
+        "color": 4
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-1180, -100],
+      "id": "s1",
+      "name": "Section 1"
+    },
+    {
+      "parameters": {
+        "content": "## ② Write it, send it, schedule the next touch\n\n`selectDueLeads` grabs the leads whose next email is due, and re-checks suppression. `prepStep` works out which step they are on and builds a short brief: the lead's facts plus what this step should accomplish.\n\n`generateMessage` hands that brief to the AI model, which writes a subject and body in your voice using only the facts given. `parseMessage` reads the model's JSON back out (and falls back to a simple note if anything goes wrong).\n\n`sendViaListmonk` sends it through ListMonk and Mailgun. `logSend` records it and `advanceStep` schedules the follow-up (3 or 5 days) or completes the lead. A send failure goes to `logFailed`, which leaves the step so the next run retries.",
+        "height": 560,
+        "width": 1660,
+        "color": 3
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-80, -100],
+      "id": "s2",
+      "name": "Section 2"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            { "field": "minutes", "minutesInterval": 15 }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [-1120, 200],
+      "id": "sched",
+      "name": "scheduleTrigger"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            { "id": "a", "name": "campaign", "type": "string", "value": "default" },
+            { "id": "b", "name": "listmonkBaseUrl", "type": "string", "value": "https://listmonk.example.com" },
+            { "id": "c", "name": "shellTemplateId", "type": "number", "value": 3 },
+            { "id": "d", "name": "fromEmail", "type": "string", "value": "Your Name <you@go.yourdomain.com>" },
+            { "id": "e", "name": "model", "type": "string", "value": "claude-haiku-4-5" },
+            { "id": "f", "name": "senderName", "type": "string", "value": "Your Name" },
+            { "id": "g", "name": "senderCompany", "type": "string", "value": "Your Company" },
+            { "id": "h", "name": "offer", "type": "string", "value": "one or two plain sentences on what you do and the value it creates for a business like theirs" },
+            { "id": "i", "name": "cta", "type": "string", "value": "a soft ask, for example reply if it is worth a quick chat, or book a call at your link" },
+            { "id": "j", "name": "dailySendCap", "type": "number", "value": 40 },
+            { "id": "k", "name": "sendWindowStart", "type": "number", "value": 9 },
+            { "id": "l", "name": "sendWindowEnd", "type": "number", "value": 16 },
+            { "id": "m", "name": "minGapSeconds", "type": "number", "value": 90 },
+            { "id": "n", "name": "perRunBatch", "type": "number", "value": 5 },
+            { "id": "o", "name": "sequenceJson", "type": "string", "value": "[{\"step\":0,\"delay_days\":0,\"angle\":\"Warm first-touch intro. Note what they do, keep it human, one sentence on the offer, and a soft ask to reply if it is relevant.\"},{\"step\":1,\"delay_days\":3,\"angle\":\"Short friendly follow-up. Add one concrete, specific benefit. No pressure, easy to ignore.\"},{\"step\":2,\"delay_days\":5,\"angle\":\"Brief, gracious breakup note. Last check-in, make it easy to say no or to say yes.\"}]" }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [-940, 200],
+      "id": "cfg",
+      "name": "config"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT campaign, daily_send_cap, send_window_start, send_window_end, min_gap_seconds FROM cold_outreach.outreach_config WHERE id = 1;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [-740, 200],
+      "id": "readcfg",
+      "name": "readConfig",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT count(*)::int AS sent_today FROM cold_outreach.outreach_sends WHERE status = 'sent' AND sent_at >= date_trunc('day', now());",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [-540, 200],
+      "id": "countsent",
+      "name": "countSentToday",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const c=$('config').first().json;const rc=$('readConfig').first();const t=(rc&&rc.json)?rc.json:{};const cs=$('countSentToday').first();const sentToday=(cs&&cs.json&&cs.json.sent_today!=null)?cs.json.sent_today:0;const dailyCap=t.daily_send_cap!=null?t.daily_send_cap:c.dailySendCap;const winStart=t.send_window_start!=null?t.send_window_start:c.sendWindowStart;const winEnd=t.send_window_end!=null?t.send_window_end:c.sendWindowEnd;const minGap=t.min_gap_seconds!=null?t.min_gap_seconds:c.minGapSeconds;const hour=new Date().getHours();const remaining=Math.max(0,dailyCap-sentToday);const perRunBatch=c.perRunBatch!=null?c.perRunBatch:5;const batchLimit=Math.min(remaining,perRunBatch);const inWindow=hour>=winStart&&hour<winEnd;const canSend=inWindow&&batchLimit>0;let sequence=[];try{sequence=JSON.parse(c.sequenceJson);}catch(e){sequence=[];}return [{json:{campaign:t.campaign!=null?t.campaign:c.campaign,listmonkBaseUrl:c.listmonkBaseUrl,shellTemplateId:c.shellTemplateId,fromEmail:c.fromEmail,model:c.model,senderName:c.senderName,senderCompany:c.senderCompany,offer:c.offer,cta:c.cta,minGapSeconds:minGap,sentToday,remaining,batchLimit,inWindow,canSend,sequence}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-340, 200],
+      "id": "resolvecfg",
+      "name": "resolveConfig"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "loose", "version": 2 },
+          "combinator": "and",
+          "conditions": [
+            { "id": "g1", "leftValue": "={{ $json.canSend }}", "rightValue": "", "operator": { "type": "boolean", "operation": "true", "singleValue": true } }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [-140, 200],
+      "id": "guard",
+      "name": "guardSend"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT s.lead_id, s.campaign, s.sequence_step, e.email, e.firm_name, e.firm_short_name, e.first_name, e.title, e.canonical_domain, e.industry, e.practice_area, e.icp_score\nFROM cold_outreach.outreach_state s\nJOIN cold_outreach.gms_leads_enriched e ON e.id = s.lead_id\nWHERE s.status = 'in_sequence'\n  AND s.next_send_at <= now()\n  AND NOT EXISTS (SELECT 1 FROM cold_outreach.suppression sup WHERE lower(sup.email) = lower(e.email))\nORDER BY s.next_send_at ASC\nLIMIT $1;",
+        "options": {
+          "queryReplacement": "={{ [ $('resolveConfig').first().json.batchLimit ] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [80, 200],
+      "id": "selectdue",
+      "name": "selectDueLeads"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const cfg=$('resolveConfig').first().json;const seq=cfg.sequence||[];const r=$json;const step=seq[r.sequence_step]||seq[seq.length-1]||{angle:'Friendly check-in.'};const isLast=r.sequence_step>=(seq.length-1);const nextDelay=isLast?0:((seq[r.sequence_step+1]&&seq[r.sequence_step+1].delay_days)||0);const NL=String.fromCharCode(10);const system='You write short, warm, genuinely human B2B outreach emails for '+cfg.senderName+' at '+cfg.senderCompany+'. What is offered: '+cfg.offer+'. The call to action: '+cfg.cta+'. Rules: keep it under 90 words, plain and conversational, specific, no corporate or salesy language, no buzzwords, no hype. Make one clear low-pressure ask. Use only the facts given about the business; never invent details, numbers, awards, or names. Do not use em dashes. Sign off as '+cfg.senderName+'. Respond with ONLY a JSON object that has two string fields named subject and body. The body is plain text with real line breaks and no markdown.';const facts=['Business facts:','- Name: '+(r.firm_name||''),'- Type: '+(r.industry||r.practice_area||'unknown'),'- Website: '+(r.canonical_domain||''),'- Contact: '+(r.first_name||'there')+(r.title?(' ('+r.title+')'):''),'','This is email '+(r.sequence_step+1)+' in the sequence. Intent for this one: '+(step.angle||'Friendly intro.')];const userContent=facts.join(NL);return { json: { lead_id:r.lead_id, campaign:r.campaign, step:r.sequence_step, email:r.email, firm_name:r.firm_name, firm_short_name:r.firm_short_name, first_name:r.first_name, is_last:isLast, next_delay_days:nextDelay, model:cfg.model, senderName:cfg.senderName, shellTemplateId:cfg.shellTemplateId, fromEmail:cfg.fromEmail, listmonkBaseUrl:cfg.listmonkBaseUrl, system:system, userContent:userContent } };"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [300, 200],
+      "id": "prep",
+      "name": "prepStep"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "anthropic-version", "value": "2023-06-01" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": {{ JSON.stringify($json.model) }},\n  \"max_tokens\": 700,\n  \"system\": {{ JSON.stringify($json.system) }},\n  \"messages\": [ { \"role\": \"user\", \"content\": {{ JSON.stringify($json.userContent) }} }, { \"role\": \"assistant\", \"content\": \"{\" } ]\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [520, 200],
+      "id": "generate",
+      "name": "generateMessage",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const p=$('prepStep').item.json;const resp=$json;const NL=String.fromCharCode(10);let subject='',body='';try{const txt=(resp&&resp.content&&resp.content[0]&&resp.content[0].text)||'';const obj=JSON.parse('{'+txt);subject=String(obj.subject||'').trim();body=String(obj.body||'').trim();}catch(e){subject='';body='';}if(!subject||!body){const fn=p.first_name||'there';const firm=p.firm_short_name||p.firm_name||'your business';subject='quick question about '+firm;body=['Hi '+fn+',','','I came across '+firm+' and wanted to reach out. Would you be open to a quick chat?','','Thanks,',(p.senderName||'')].join(NL);}const bodyHtml=body.split(NL).join('<br>');return { json: { lead_id:p.lead_id, campaign:p.campaign, step:p.step, is_last:p.is_last, next_delay_days:p.next_delay_days, email:p.email, subject:subject, body:body, bodyHtml:bodyHtml, shellTemplateId:p.shellTemplateId, fromEmail:p.fromEmail, listmonkBaseUrl:p.listmonkBaseUrl } };"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [740, 200],
+      "id": "parse",
+      "name": "parseMessage"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.listmonkBaseUrl }}/api/tx",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"subscriber_email\": {{ JSON.stringify($json.email) }},\n  \"template_id\": {{ $json.shellTemplateId }},\n  \"subject\": {{ JSON.stringify($json.subject) }},\n  \"data\": {{ JSON.stringify({ subject: $json.subject, body: $json.bodyHtml }) }},\n  \"from_email\": {{ JSON.stringify($json.fromEmail) }},\n  \"content_type\": \"html\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [960, 200],
+      "id": "send",
+      "name": "sendViaListmonk",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO cold_outreach.outreach_sends (lead_id, campaign, step, subject, sent_at, provider_message_id, status)\nVALUES ($1, $2, $3, $4, now(), null, 'sent');",
+        "options": {
+          "queryReplacement": "={{ [ $('parseMessage').item.json.lead_id, $('parseMessage').item.json.campaign, $('parseMessage').item.json.step, $('parseMessage').item.json.subject ] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [1180, 120],
+      "id": "logsend",
+      "name": "logSend"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE cold_outreach.outreach_state\nSET last_sent_at = now(),\n    sequence_step = CASE WHEN $2 THEN sequence_step ELSE sequence_step + 1 END,\n    status = CASE WHEN $2 THEN 'completed' ELSE 'in_sequence' END,\n    completed_at = CASE WHEN $2 THEN now() ELSE completed_at END,\n    next_send_at = CASE WHEN $2 THEN NULL ELSE now() + ($3 * INTERVAL '1 day') END\nWHERE lead_id = $1;",
+        "options": {
+          "queryReplacement": "={{ [ $('parseMessage').item.json.lead_id, $('parseMessage').item.json.is_last, $('parseMessage').item.json.next_delay_days ] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [1400, 120],
+      "id": "advance",
+      "name": "advanceStep"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO cold_outreach.outreach_sends (lead_id, campaign, step, subject, sent_at, provider_message_id, status)\nVALUES ($1, $2, $3, $4, now(), null, 'failed');",
+        "options": {
+          "queryReplacement": "={{ [ $('parseMessage').item.json.lead_id, $('parseMessage').item.json.campaign, $('parseMessage').item.json.step, $('parseMessage').item.json.subject ] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [1180, 340],
+      "id": "logfail",
+      "name": "logFailed"
+    }
+  ],
+  "connections": {
+    "scheduleTrigger": { "main": [ [ { "node": "config", "type": "main", "index": 0 } ] ] },
+    "config": { "main": [ [ { "node": "readConfig", "type": "main", "index": 0 } ] ] },
+    "readConfig": { "main": [ [ { "node": "countSentToday", "type": "main", "index": 0 } ] ] },
+    "countSentToday": { "main": [ [ { "node": "resolveConfig", "type": "main", "index": 0 } ] ] },
+    "resolveConfig": { "main": [ [ { "node": "guardSend", "type": "main", "index": 0 } ] ] },
+    "guardSend": { "main": [ [ { "node": "selectDueLeads", "type": "main", "index": 0 } ], [] ] },
+    "selectDueLeads": { "main": [ [ { "node": "prepStep", "type": "main", "index": 0 } ] ] },
+    "prepStep": { "main": [ [ { "node": "generateMessage", "type": "main", "index": 0 } ] ] },
+    "generateMessage": { "main": [ [ { "node": "parseMessage", "type": "main", "index": 0 } ] ] },
+    "parseMessage": { "main": [ [ { "node": "sendViaListmonk", "type": "main", "index": 0 } ] ] },
+    "sendViaListmonk": { "main": [ [ { "node": "logSend", "type": "main", "index": 0 } ], [ { "node": "logFailed", "type": "main", "index": 0 } ] ] },
+    "logSend": { "main": [ [ { "node": "advanceStep", "type": "main", "index": 0 } ] ] }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

@@ -2,7 +2,7 @@
 
 > Paste the block below into Claude, ChatGPT, Gemini, or any reasoning-capable LLM. It walks you through deploying this workflow against YOUR stack: the captions service, n8n import, the AI Agent model choice, Google Drive, and an end-to-end test. It asks the questions it needs; you answer with what your environment actually looks like.
 
-**Why use it:** the workflow imports and runs, but the two decisions that matter — where the captions service lives on your network, and which model you point the agent at — depend on your setup. The prompt pulls those out of you with targeted questions instead of leaving you staring at a template.
+**Why use it:** the workflow imports and runs, but the two decisions that matter (where the captions service lives on your network, and which model you point the agent at) depend on your setup. The prompt pulls those out of you with targeted questions instead of leaving you staring at a template.
 
 **Recommended models:** Claude Sonnet 4.5 / Opus 4.8, GPT-5, or Gemini 2.5 Pro. Smaller models work too, with less detail.
 
