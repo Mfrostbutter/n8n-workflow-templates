@@ -9,3 +9,5 @@ Thumbs.db
 # Editor
 .vscode/
 .idea/
+__pycache__/
+*.pyc

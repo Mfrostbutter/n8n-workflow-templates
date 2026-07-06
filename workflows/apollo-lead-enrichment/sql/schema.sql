@@ -19,14 +19,17 @@ CREATE SCHEMA IF NOT EXISTS cold_outreach;
 -- to 'failed' if the Apify run did not succeed.
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS cold_outreach.gms_runs (
-  id            bigserial PRIMARY KEY,
-  vertical      text,                       -- free-form label for what you scraped, e.g. "hvac_nj"
-  apify_run_id  text,
-  dataset_id    text,
-  status        text        NOT NULL DEFAULT 'running',  -- running | succeeded | failed
-  error_message text,
-  created_at    timestamptz NOT NULL DEFAULT now(),
-  completed_at  timestamptz
+  id               bigserial PRIMARY KEY,
+  vertical         text,                       -- free-form label for what you scraped, e.g. "hvac_ny"
+  search_terms     text[],                     -- the Google Maps search strings (set by Part 1)
+  location_query   text,                       -- the location searched (set by Part 1)
+  max_per_search   integer,                    -- max places per search term (set by Part 1)
+  apify_run_id     text,
+  apify_dataset_id text,
+  status           text        NOT NULL DEFAULT 'pending',  -- pending | running | succeeded | failed
+  error_message    text,
+  created_at       timestamptz NOT NULL DEFAULT now(),
+  completed_at     timestamptz
 );
 
 -- ---------------------------------------------------------------------------

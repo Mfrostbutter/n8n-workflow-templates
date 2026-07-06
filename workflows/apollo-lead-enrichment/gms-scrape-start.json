@@ -1,0 +1,227 @@
+{
+  "name": "GMS Scrape Start (Apollo lead pipeline, part 1)",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "# Part 1 - Scrape Start\n\nKicks off a Google Maps scrape and wires it to a webhook callback so you never poll or guess a wait time. When the scrape finishes, Apify calls **Part 2** (the enrichment workflow) automatically.\n\n## Flow\n1. Form submission: vertical, search terms (comma-separated), location, max per search.\n2. Insert a `cold_outreach.gms_runs` row, capture the run id.\n3. Build a base64 `webhooks` param and POST the Apify Google Maps actor. Apify fires `WEBHOOK_BASE/webhook/maps-lead-enrich-inbound` on finish, embedding the run id so Part 2 joins back to the right row.\n4. Update the row with the Apify run id.\n5. Show a `queued` completion page.\n\n## Before activating\n- Attach a **Postgres** credential (any Postgres 12+). Apply `sql/schema.sql` first.\n- Attach an **Apify HTTP Query Auth** credential (sends your token as the `token` query param).\n- Set `WEBHOOK_BASE` in the **Config** node to your public n8n URL, e.g. `https://your-n8n.example.com`. The `/webhook/maps-lead-enrich-inbound` path must be reachable by Apify.\n- Import **Part 2** (`apollo-lead-enrichment.json`) and activate it too, so the callback has somewhere to land.",
+        "height": 1196,
+        "width": 960,
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [-1568, -800],
+      "typeVersion": 1,
+      "id": "doc-1",
+      "name": "Doc"
+    },
+    {
+      "parameters": {
+        "formTitle": "Google Maps Scrape - Start",
+        "formDescription": "Triggers a Google Maps scrape and routes results through Apollo enrichment + ICP scoring. Results do not appear in this form; check your leads table (or the read-only viewer in viewer/) when the run finishes.",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "vertical",
+              "placeholder": "legal",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "searchStringsArray",
+              "placeholder": "Estate Planning Attorney, Elder Law, Family Law",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "locationQuery",
+              "placeholder": "Poughkeepsie, NY",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "maxCrawledPlacesPerSearch",
+              "fieldType": "number",
+              "placeholder": "50",
+              "requiredField": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.3,
+      "position": [-1344, -112],
+      "id": "trigger-form",
+      "name": "On form submission",
+      "webhookId": "gms-scrape-start"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "c1",
+              "name": "WEBHOOK_BASE",
+              "type": "string",
+              "value": "https://your-n8n.example.com"
+            },
+            {
+              "id": "c2",
+              "name": "APIFY_ACTOR_ID",
+              "type": "string",
+              "value": "compass~crawler-google-places"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [-1152, -112],
+      "id": "config-set",
+      "name": "Config"
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first();\nconst form = $('On form submission').first().json;\nconst raw = String(form.searchStringsArray || '').trim();\nconst terms = raw.split(',').map(s => s.trim()).filter(Boolean);\nitem.json = {\n  vertical: String(form.vertical || '').trim().toLowerCase(),\n  search_terms: terms,\n  location_query: String(form.locationQuery || '').trim(),\n  max_per_search: Number(form.maxCrawledPlacesPerSearch || 0),\n  WEBHOOK_BASE: item.json.WEBHOOK_BASE,\n  APIFY_ACTOR_ID: item.json.APIFY_ACTOR_ID,\n};\nreturn [item];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-1024, -112],
+      "id": "code-parse",
+      "name": "Parse form"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO cold_outreach.gms_runs (vertical, search_terms, location_query, max_per_search, status)\nVALUES ($1, $2::text[], $3, $4, 'pending')\nRETURNING id, vertical;",
+        "options": {
+          "queryReplacement": "={{ [$json.vertical, $json.search_terms, $json.location_query, $json.max_per_search] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [-896, -112],
+      "id": "pg-insert-run",
+      "name": "Insert gms_runs"
+    },
+    {
+      "id": "code-build-webhooks",
+      "name": "Build webhooks param",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-816, -288],
+      "parameters": {
+        "jsCode": "// Apify registers ad-hoc webhooks from a base64-encoded `webhooks` query param on\n// the run POST (not from the actor-input body). Apify interpolates {{resource.*}}\n// only when the placeholder is UNQUOTED, so it substitutes the JSON-stringified\n// value (quotes included). run_pk / vertical are our own values, so we inline them.\nconst item = $input.first().json;\nconst base = $('Parse form').first().json.WEBHOOK_BASE;\nconst webhooks = [{\n  eventTypes: ['ACTOR.RUN.SUCCEEDED', 'ACTOR.RUN.FAILED', 'ACTOR.RUN.ABORTED', 'ACTOR.RUN.TIMED_OUT'],\n  requestUrl: base + '/webhook/maps-lead-enrich-inbound',\n  payloadTemplate: '{\"run_pk\": ' + item.id + ', \"vertical\": \"' + item.vertical + '\", \"apify_run_id\": {{resource.id}}, \"dataset_id\": {{resource.defaultDatasetId}}, \"status\": {{resource.status}}}'\n}];\nreturn [{ json: { id: item.id, vertical: item.vertical, webhooksB64: Buffer.from(JSON.stringify(webhooks)).toString('base64') } }];\n"
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.apify.com/v2/acts/{{ $('Parse form').first().json.APIFY_ACTOR_ID }}/runs?webhooks={{ encodeURIComponent($json.webhooksB64) }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpQueryAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"includeWebResults\": true,\n  \"language\": \"en\",\n  \"locationQuery\": \"{{ $('Parse form').first().json.location_query }}\",\n  \"maxCrawledPlacesPerSearch\": {{ $('Parse form').first().json.max_per_search }},\n  \"maxImages\": 0,\n  \"scrapeContacts\": true,\n  \"scrapeDirectories\": false,\n  \"scrapeImageAuthors\": false,\n  \"scrapePlaceDetailPage\": true,\n  \"scrapeReviewsPersonalData\": false,\n  \"scrapeTableReservationProvider\": false,\n  \"searchStringsArray\": {{ JSON.stringify($('Parse form').first().json.search_terms) }},\n  \"skipClosedPlaces\": true,\n  \"website\": \"allPlaces\"\n}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-752, -112],
+      "id": "http-run-actor",
+      "name": "Run Apify Actor",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE cold_outreach.gms_runs\nSET apify_run_id = $1, apify_dataset_id = $2, status = 'running'\nWHERE id = $3\nRETURNING id, apify_run_id;",
+        "options": {
+          "queryReplacement": "={{ [$json.data.id, $json.data.defaultDatasetId, $('Insert gms_runs').first().json.id] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [-352, -128],
+      "id": "pg-update-run",
+      "name": "Update gms_runs"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE cold_outreach.gms_runs\nSET status = 'failed', error_message = $1, completed_at = now()\nWHERE id = $2;",
+        "options": {
+          "queryReplacement": "={{ [ String(($json.error && ($json.error.message || $json.error)) || 'apify_start_failed'), $('Insert gms_runs').first().json.id ] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [-1296, 208],
+      "id": "pg-mark-failed",
+      "name": "Mark run failed"
+    },
+    {
+      "parameters": {
+        "operation": "completion",
+        "completionTitle": "Scrape queued",
+        "completionMessage": "=Run #{{ $('Insert gms_runs').first().json.id }} is running on Apify. Results land in your cold-lead table when enrichment finishes; open the read-only viewer (viewer/) to watch them arrive. Verticals queue up independently.",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.form",
+      "typeVersion": 2.3,
+      "position": [-208, -128],
+      "id": "form-complete",
+      "name": "Queued",
+      "webhookId": "gms-scrape-start-complete"
+    },
+    {
+      "parameters": {
+        "content": "## Section 1\nInput, persist the run, kick off Apify with a webhook callback embedded.\n\nThe **Build webhooks param** node is the magic: it base64-encodes a `webhooks` array and passes it as a query param on the Apify run POST. Apify fires `WEBHOOK_BASE/webhook/maps-lead-enrich-inbound` when the run finishes, carrying `run_pk` so Part 2 joins back to the correct DB row. No polling, no guessed wait times.",
+        "height": 360,
+        "width": 940,
+        "color": 4
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [-592, -320],
+      "typeVersion": 1,
+      "id": "note-1",
+      "name": "Note section 1"
+    }
+  ],
+  "connections": {
+    "On form submission": {
+      "main": [[{ "node": "Config", "type": "main", "index": 0 }]]
+    },
+    "Config": {
+      "main": [[{ "node": "Parse form", "type": "main", "index": 0 }]]
+    },
+    "Parse form": {
+      "main": [[{ "node": "Insert gms_runs", "type": "main", "index": 0 }]]
+    },
+    "Insert gms_runs": {
+      "main": [[{ "node": "Build webhooks param", "type": "main", "index": 0 }]]
+    },
+    "Build webhooks param": {
+      "main": [[{ "node": "Run Apify Actor", "type": "main", "index": 0 }]]
+    },
+    "Run Apify Actor": {
+      "main": [
+        [{ "node": "Update gms_runs", "type": "main", "index": 0 }],
+        [{ "node": "Mark run failed", "type": "main", "index": 0 }]
+      ]
+    },
+    "Update gms_runs": {
+      "main": [[{ "node": "Queued", "type": "main", "index": 0 }]]
+    },
+    "Mark run failed": {
+      "main": [[]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

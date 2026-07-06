@@ -68,28 +68,27 @@ in the Score ICP node, so spend the most effort there.
    - REVEAL_MIN_SCORE = the ICP score a lead must hit before I spend a credit
      (default 60; raise it to be stingier, lower it to reveal more)
 
-6. Import the workflow. Give me the exact n8n menu path to import
-   apollo-lead-enrichment.json.
+6. Import both workflows. Give me the exact n8n menu path to import, then have me
+   import gms-scrape-start.json (Part 1, the scrape trigger) and
+   apollo-lead-enrichment.json (Part 2, the enrichment).
 
 7. Attach credentials (none are bundled). Walk me through:
-   - A Postgres credential on every database node (they share one connection)
-   - HTTP Query Auth on "Get dataset items": my Apify API token sent as the
-     `token` query parameter
-   - HTTP Header Auth on the three Apollo nodes: header name X-Api-Key, value my
-     Apollo API key
+   - A Postgres credential on every database node in both workflows (they share
+     one connection)
+   - HTTP Query Auth on Part 1's "Run Apify Actor" and Part 2's "Get dataset
+     items": my Apify API token sent as the `token` query parameter
+   - HTTP Header Auth on Part 2's three Apollo nodes: header name X-Api-Key, value
+     my Apollo API key
    Never ask me to paste any of these keys into this chat; they live in n8n's
    Credentials panel only.
 
-8. Wire the trigger. The workflow starts from a POST to the webhook path
-   maps-lead-enrich-inbound. Explain the contract and help me set up the minimal
-   starter:
-   - Before a scrape, INSERT a row into cold_outreach.gms_runs and keep its id.
-   - Start the Apify Google Maps Scraper with that id in the payload.
-   - When the run finishes, POST this to the webhook:
-     { "run_pk": <that id>, "vertical": "<label>", "apify_run_id": "...",
-       "dataset_id": "...", "status": "SUCCEEDED" }
-   - The easiest wiring is Apify's own run-finished webhook, which carries the
-     dataset id (resource.defaultDatasetId). Help me set whichever path fits.
+8. Wire the trigger. Part 1 already handles this: it inserts the gms_runs row and
+   registers Apify's run-finished webhook so Part 2 fires automatically. Just help
+   me set WEBHOOK_BASE in Part 1's Config node to my public n8n URL, and activate
+   both workflows. (If I want to use a different scraper instead of Part 1, explain
+   the contract: something POSTs { "run_pk", "vertical", "apify_run_id",
+   "dataset_id", "status": "SUCCEEDED" } to the webhook path maps-lead-enrich-inbound
+   when the scrape finishes.)
 
 9. Test end to end. Have me run a small scrape (a handful of places), fire the
    trigger, and confirm: raw rows land in gms_leads_raw, enriched contacts land in

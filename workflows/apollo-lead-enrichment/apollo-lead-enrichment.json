@@ -163,7 +163,7 @@
         "operation": "executeQuery",
         "query": "WITH dedup AS (\n  INSERT INTO cold_outreach.seen_leads (canonical_domain, place_id, first_run_id)\n  VALUES ($1, $2, $3)\n  ON CONFLICT (canonical_domain, place_id) DO UPDATE\n    SET last_seen_at = now(), seen_count = cold_outreach.seen_leads.seen_count + 1\n  RETURNING (xmax = 0) AS is_new\n)\nSELECT is_new FROM dedup;",
         "options": {
-          "queryReplacement": "={{ [$json.canonical_domain, $json.place_id, $json.run_pk] }}"
+          "queryReplacement": "={{ [$json.canonical_domain || '', $json.place_id, $json.run_pk] }}"
         }
       },
       "type": "n8n-nodes-base.postgres",
@@ -284,7 +284,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "https://api.apollo.io/v1/mixed_people/api_search",
+        "url": "https://api.apollo.io/api/v1/mixed_people/api_search",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "sendBody": true,

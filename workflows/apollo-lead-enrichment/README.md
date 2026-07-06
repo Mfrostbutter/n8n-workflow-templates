@@ -12,6 +12,15 @@ Buying enrichment credits by the thousand is how most people burn their budget o
 
 So this workflow does all the free work first, scores every business against your ideal customer profile using signals that cost nothing, and spends a reveal credit **only** when a lead clears your score bar, has a decision-maker title, and you are still under your monthly cap. Everything else lands in the table unrevealed, ready for a manual reveal later if you want it.
 
+## Two parts
+
+The pipeline ships as two n8n workflows that hand off automatically:
+
+- **Part 1, `gms-scrape-start.json`** - a form (vertical, search terms, location, max per search) that records the run, launches the Apify Google Maps scraper, and registers Apify's run-finished webhook. Nothing to poll.
+- **Part 2, `apollo-lead-enrichment.json`** - the enrichment + scoring + credit-gated reveal. Apify calls it directly when the scrape finishes.
+
+Import both, attach your credentials, and a form submission runs the whole thing end to end. There is also a read-only [`viewer/`](viewer/) to browse the leads that land.
+
 ## What it does
 
 1. Your Google Maps scrape finishes and calls the workflow's webhook with the run id.
@@ -35,10 +44,9 @@ This one boundary is why the workflow writes to its own schema and never assumes
 ## What you need
 
 - **n8n** (self-hosted or Cloud).
-- **A Google Maps scrape source.** This template is built around [Apify](https://apify.com) running a Google Maps Scraper actor, but any scraper works as long as something POSTs the trigger contract below and exposes a dataset of places. The workflow reads the dataset with an Apify dataset URL by default.
+- **An [Apify](https://apify.com) account.** Part 1 launches the Apify Google Maps Scraper actor and registers its run-finished webhook for you. Prefer a different scraper? Part 1 is optional; anything that POSTs the [trigger contract](#the-trigger-contract) to Part 2 works.
 - **An Apollo account** ([apollo.io](https://www.apollo.io)). The free tier covers org enrich and people search; email reveals draw from your monthly credit allowance. Set the cap in the workflow to match your plan.
 - **Postgres** for the four tables (schema included). Any Postgres 12+ works.
-- **A trigger.** Something has to create a run row and call the webhook when the scrape finishes. See [The trigger contract](#the-trigger-contract).
 
 None of the credentials are bundled. You attach your own.
 
@@ -49,13 +57,14 @@ None of the credentials are bundled. You attach your own.
 ### 1. Create the database schema
 Apply [`sql/schema.sql`](sql/schema.sql) to your Postgres database. It creates the `cold_outreach` schema and all four tables in one shot.
 
-### 2. Import the workflow
-`apollo-lead-enrichment.json` -> **Import from File** in n8n.
+### 2. Import both workflows
+**Import from File** in n8n, twice: `gms-scrape-start.json` (Part 1) and `apollo-lead-enrichment.json` (Part 2).
 
 ### 3. Attach credentials (none are bundled)
-- **Postgres** on every database node (they all use one connection).
-- **HTTP Query Auth** (your Apify API token as the `token` query param) on `Get dataset items`.
-- **HTTP Header Auth** (`X-Api-Key: <your Apollo key>`) on the three Apollo nodes.
+- **Postgres** on every database node in both workflows (they all use one connection).
+- **HTTP Query Auth** (your Apify API token as the `token` query param) on Part 1's `Run Apify Actor` and Part 2's `Get dataset items`.
+- **HTTP Header Auth** (`X-Api-Key: <your Apollo key>`) on Part 2's three Apollo nodes.
+- In Part 1's **Config** node, set `WEBHOOK_BASE` to your public n8n URL so Apify can reach the callback.
 
 ### 4. Set your ICP (the step that matters)
 Open the **`Score ICP`** node. The top of the file is a clearly marked block:
@@ -76,12 +85,12 @@ Open the **`Config`** node:
 - `MONTHLY_REVEAL_CAP` (default 50) - match your Apollo credit allowance.
 - `REVEAL_MIN_SCORE` (default 60) - the ICP score a lead must hit before you spend a credit.
 
-### 6. Wire the trigger
-Point your scrape's completion webhook at the workflow's `Apify webhook` node (path `maps-lead-enrich-inbound`). See below.
+### 6. Activate both workflows
+Turn on Part 1 and Part 2. Submit Part 1's form and the run flows straight through to enriched leads. Watch them land with the [`viewer/`](viewer/).
 
 ## The trigger contract
 
-The workflow starts from a single POST. Whatever kicks off your scrape is responsible for creating a `gms_runs` row first and then calling this webhook when the run finishes:
+Part 1 already speaks this contract, so you only need it if you swap in a different scraper. Part 2 starts from a single POST to its `Apify webhook` node (path `maps-lead-enrich-inbound`). Whatever kicks off your scrape creates a `gms_runs` row first, then calls this webhook when the run finishes:
 
 ```
 POST https://YOUR-N8N/webhook/maps-lead-enrich-inbound
@@ -96,7 +105,7 @@ Content-Type: application/json
 }
 ```
 
-The minimal starter is: (1) `INSERT INTO cold_outreach.gms_runs (vertical, status) VALUES ('...', 'running') RETURNING id;`, (2) start your Apify actor with that id in the payload, (3) let Apify's own run-finished webhook (or a second small n8n workflow) POST the contract above. The Apify Google Maps Scraper can call a webhook on finish and include its `resource.defaultDatasetId`, which maps straight to `dataset_id`.
+Part 1 (`gms-scrape-start.json`) is exactly this reference implementation: it inserts the `gms_runs` row, then base64-encodes a `webhooks` array onto the Apify run POST so Apify fires the contract above on finish, with `run_pk` and `resource.defaultDatasetId` mapped straight into `dataset_id`. (One gotcha it handles for you: Apify only interpolates `{{resource.status}}` style variables when they are left **unquoted** in the payload template.)
 
 ## What is in the workflow
 
