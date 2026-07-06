@@ -17,6 +17,7 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/). Dates ar
 - **README + AI-SETUP-PROMPT** rewritten for the two-part import, plus the Apify "unquoted variable" gotcha.
 
 ### Fixed
+- **`viewer/` 500'd on non-ASCII names.** The database connection decoded text as ASCII, so a firm or contact name with an accented character crashed `/api/leads` (the stat tiles still loaded, the table did not). The connection now forces `client_encoding=UTF8`.
 - **Part 2 org enrich was silently returning nothing, which poisoned every lead.** It POSTed a JSON `{domain}` body to `/v1/organizations/enrich`, but Apollo's org enrich is a **GET** with `domain` as a **query param** on `/api/v1/`, so every org came back empty. With no org id, the people search had nothing to scope to and fell back to Apollo's **sample dataset** (the same demo contacts, e.g. "Uros Flere", for every firm). Fixed to `GET /api/v1/organizations/enrich?domain=...`. The ICP scorer now also drops people entirely when Apollo has no org for the domain, so a domain Apollo does not know yields no contacts instead of fake ones. Note: Apollo's people search returns first name + title with the last name and email masked; the reveal step unmasks them.
 - **Part 2 people search** endpoint corrected to `https://api.apollo.io/api/v1/mixed_people/api_search` (the older path returned 422).
 - **Part 2 dedup** key null-coalesced, so a place with no domain no longer trips a NOT NULL violation.

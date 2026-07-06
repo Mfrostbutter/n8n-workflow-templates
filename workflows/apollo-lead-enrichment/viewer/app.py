@@ -75,6 +75,7 @@ def connect():
         password=os.environ.get("PGPASSWORD", ""),
     )
     conn.set_session(readonly=True, autocommit=True)
+    conn.set_client_encoding("UTF8")  # firm/contact names can be non-ASCII
     return conn
 
 
