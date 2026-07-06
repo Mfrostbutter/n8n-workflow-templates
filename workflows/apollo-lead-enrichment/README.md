@@ -16,8 +16,8 @@ So this workflow does all the free work first, scores every business against you
 
 The pipeline ships as two n8n workflows that hand off automatically:
 
-- **Part 1, `gms-scrape-start.json`** - a form (vertical, search terms, location, max per search) that records the run, launches the Apify Google Maps scraper, and registers Apify's run-finished webhook. Nothing to poll.
-- **Part 2, `apollo-lead-enrichment.json`** - the enrichment + scoring + credit-gated reveal. Apify calls it directly when the scrape finishes.
+- **Part 1, `1-gms-scrape-start.json`** - a form (vertical, search terms, location, max per search) that records the run, launches the Apify Google Maps scraper, and registers Apify's run-finished webhook. Nothing to poll.
+- **Part 2, `2-apollo-lead-enrichment.json`** - the enrichment + scoring + credit-gated reveal. Apify calls it directly when the scrape finishes.
 
 Import both, attach your credentials, and a form submission runs the whole thing end to end. There is also a read-only [`viewer/`](viewer/) to browse the leads that land.
 
@@ -58,7 +58,7 @@ None of the credentials are bundled. You attach your own.
 Apply [`sql/schema.sql`](sql/schema.sql) to your Postgres database. It creates the `cold_outreach` schema and all four tables in one shot.
 
 ### 2. Import both workflows
-**Import from File** in n8n, twice: `gms-scrape-start.json` (Part 1) and `apollo-lead-enrichment.json` (Part 2).
+**Import from File** in n8n, twice: `1-gms-scrape-start.json` (Part 1) and `2-apollo-lead-enrichment.json` (Part 2).
 
 ### 3. Attach credentials (none are bundled)
 - **Postgres** on every database node in both workflows (they all use one connection).
@@ -105,7 +105,7 @@ Content-Type: application/json
 }
 ```
 
-Part 1 (`gms-scrape-start.json`) is exactly this reference implementation: it inserts the `gms_runs` row, then base64-encodes a `webhooks` array onto the Apify run POST so Apify fires the contract above on finish, with `run_pk` and `resource.defaultDatasetId` mapped straight into `dataset_id`. (One gotcha it handles for you: Apify only interpolates `{{resource.status}}` style variables when they are left **unquoted** in the payload template.)
+Part 1 (`1-gms-scrape-start.json`) is exactly this reference implementation: it inserts the `gms_runs` row, then base64-encodes a `webhooks` array onto the Apify run POST so Apify fires the contract above on finish, with `run_pk` and `resource.defaultDatasetId` mapped straight into `dataset_id`. (One gotcha it handles for you: Apify only interpolates `{{resource.status}}` style variables when they are left **unquoted** in the payload template.)
 
 ## What is in the workflow
 

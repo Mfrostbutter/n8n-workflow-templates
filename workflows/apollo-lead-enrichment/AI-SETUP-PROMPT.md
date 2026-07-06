@@ -69,8 +69,8 @@ in the Score ICP node, so spend the most effort there.
      (default 60; raise it to be stingier, lower it to reveal more)
 
 6. Import both workflows. Give me the exact n8n menu path to import, then have me
-   import gms-scrape-start.json (Part 1, the scrape trigger) and
-   apollo-lead-enrichment.json (Part 2, the enrichment).
+   import 1-gms-scrape-start.json (Part 1, the scrape trigger) and
+   2-apollo-lead-enrichment.json (Part 2, the enrichment).
 
 7. Attach credentials (none are bundled). Walk me through:
    - A Postgres credential on every database node in both workflows (they share
