@@ -19,6 +19,8 @@ Dependency: psycopg2 (pip install psycopg2-binary).
 
 import json
 import os
+import urllib.request
+import urllib.error
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs
 
@@ -28,6 +30,14 @@ import psycopg2.extras
 HERE = os.path.dirname(os.path.abspath(__file__))
 PORT = int(os.environ.get("VIEWER_PORT", "8787"))
 TOKEN = os.environ.get("VIEWER_TOKEN", "")
+
+# Optional manual-reveal relay. If REVEAL_WEBHOOK_URL is set, the viewer exposes a
+# Reveal button that POSTs the lead id here; this server forwards it (with the
+# shared token, kept server-side) to your n8n manual-reveal webhook, which does
+# the Apollo call and the DB write. The viewer's own DB connection stays
+# read-only; it never writes your database.
+REVEAL_URL = os.environ.get("REVEAL_WEBHOOK_URL", "")
+REVEAL_TOKEN = os.environ.get("REVEAL_TOKEN", "")
 
 # Columns exposed to the table view. Heavy jsonb payloads are fetched only on the
 # per-lead detail call, never in the list, to keep the grid fast.
@@ -148,6 +158,22 @@ def q_lead_detail(cur, lead_id):
     return dict(row) if row else None
 
 
+def forward_reveal(lead_id):
+    """Relay a reveal request to the n8n manual-reveal webhook. The token stays
+    server-side (never sent to the browser). Returns the webhook's JSON verbatim."""
+    payload = json.dumps({"lead_id": lead_id, "token": REVEAL_TOKEN}).encode("utf-8")
+    req = urllib.request.Request(
+        REVEAL_URL, data=payload, method="POST",
+        headers={"Content-Type": "application/json", "User-Agent": "cold-lead-viewer"})
+    try:
+        with urllib.request.urlopen(req, timeout=30) as r:
+            return json.loads(r.read().decode("utf-8"))
+    except urllib.error.HTTPError as e:
+        return {"ok": False, "error": "reveal webhook returned %d" % e.code}
+    except Exception as e:  # noqa: BLE001 - surface any relay failure to the UI
+        return {"ok": False, "error": str(e)}
+
+
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, *a):  # quiet console
         pass
@@ -185,7 +211,8 @@ class Handler(BaseHTTPRequestHandler):
         try:
             with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
                 if u.path == "/api/stats":
-                    return self._json({"stats": q_stats(cur), "runs": q_runs(cur)})
+                    return self._json({"stats": q_stats(cur), "runs": q_runs(cur),
+                                       "reveal_enabled": bool(REVEAL_URL)})
                 if u.path == "/api/leads":
                     return self._json(q_leads(cur, params))
                 if u.path == "/api/lead":
@@ -199,6 +226,26 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({"error": str(e)}, 500)
         finally:
             conn.close()
+
+    def do_POST(self):
+        u = urlparse(self.path)
+        params = parse_qs(u.query)
+        if TOKEN and params.get("token", [""])[0] != TOKEN:
+            return self._json({"error": "unauthorized"}, 401)
+        if u.path != "/api/reveal":
+            return self._json({"error": "not found"}, 404)
+        if not REVEAL_URL:
+            return self._json(
+                {"error": "reveal not configured; set REVEAL_WEBHOOK_URL"}, 400)
+        try:
+            length = int(self.headers.get("Content-Length", 0))
+            body = json.loads(self.rfile.read(length).decode("utf-8") or "{}")
+        except Exception:
+            return self._json({"error": "bad request body"}, 400)
+        lead_id = body.get("lead_id")
+        if lead_id is None:
+            return self._json({"error": "lead_id required"}, 400)
+        return self._json(forward_reveal(lead_id))
 
 
 def main():

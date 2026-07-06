@@ -1,0 +1,204 @@
+{
+  "name": "GMS Manual Reveal (Apollo lead pipeline, part 3)",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "# Part 3 - Manual Reveal\n\nAn optional on-demand reveal. Part 2 leaves most contacts **unrevealed** (masked email, ready to reveal later). This webhook reveals one when you ask, so the read-only `viewer/` can offer a Reveal button without ever writing your database or holding your Apollo key.\n\n## Flow\n1. `POST /webhook/manual-reveal` with `{ \"lead_id\": 123, \"token\": \"...\" }`.\n2. Check the shared token (set `REVEAL_TOKEN` in the Config node). Bad token -> `{ ok: false, error: \"unauthorized\" }`.\n3. Load the lead. If it has no Apollo person id or is already revealed -> `{ ok: false, reason: ... }` (no credit spent).\n4. Apollo `people/match` reveal (spends one credit), then update the row to `verified` with the email.\n5. Respond `{ ok: true, lead_id, email, email_status }`.\n\n## Before activating\n- Attach the same **Postgres** credential as Parts 1 and 2 on both database nodes.\n- Attach your **Apollo** HTTP Header Auth credential (`X-Api-Key`) on the reveal node.\n- Set `REVEAL_TOKEN` in the **Config** node to a secret string. The `viewer/` sends it as `REVEAL_TOKEN`; anyone who can POST this webhook can spend your Apollo credits, so treat it like a password.\n\n## Note on the cap\nManual reveals are deliberate, one click per credit, and are **not** bounded by the Part 2 monthly cap. Keep `REVEAL_TOKEN` private.",
+        "height": 620,
+        "width": 700,
+        "color": 6
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [-1560, -360],
+      "typeVersion": 1,
+      "id": "doc-3",
+      "name": "Doc"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "manual-reveal",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [-1240, 0],
+      "id": "wh",
+      "name": "Reveal webhook",
+      "webhookId": "manual-reveal"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {"id": "t", "name": "REVEAL_TOKEN", "type": "string", "value": "change-me"},
+            {"id": "c", "name": "MONTHLY_REVEAL_CAP", "type": "number", "value": 50}
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [-1040, 0],
+      "id": "cfg",
+      "name": "Config"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {"caseSensitive": true, "leftValue": "", "typeValidation": "loose", "version": 2},
+          "combinator": "and",
+          "conditions": [
+            {"id": "c1", "leftValue": "={{ $('Reveal webhook').first().json.body.token }}", "rightValue": "={{ $('Config').first().json.REVEAL_TOKEN }}", "operator": {"type": "string", "operation": "equals"}}
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [-840, 0],
+      "id": "iftoken",
+      "name": "Token OK?"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {"id": "a", "name": "ok", "type": "boolean", "value": false},
+            {"id": "b", "name": "error", "type": "string", "value": "unauthorized"}
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [-640, 220],
+      "id": "resp401",
+      "name": "Unauthorized"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT id, apollo_person_id, email_status FROM cold_outreach.gms_leads_enriched WHERE id = $1;",
+        "options": {"queryReplacement": "={{ [ $('Reveal webhook').first().json.body.lead_id ] }}"}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [-640, -40],
+      "id": "loadlead",
+      "name": "Load lead",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {"caseSensitive": true, "leftValue": "", "typeValidation": "loose", "version": 2},
+          "combinator": "and",
+          "conditions": [
+            {"id": "r1", "leftValue": "={{ $json.apollo_person_id }}", "rightValue": "", "operator": {"type": "string", "operation": "notEmpty", "singleValue": true}},
+            {"id": "r2", "leftValue": "={{ $json.email_status }}", "rightValue": "verified", "operator": {"type": "string", "operation": "notEquals"}}
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [-440, -40],
+      "id": "ifreveal",
+      "name": "Revealable?"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {"id": "a", "name": "ok", "type": "boolean", "value": false},
+            {"id": "b", "name": "reason", "type": "string", "value": "lead not found, already revealed, or no Apollo contact"}
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [-240, 220],
+      "id": "respskip",
+      "name": "Not revealable"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.apollo.io/v1/people/match",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"id\": \"{{ $('Load lead').item.json.apollo_person_id }}\",\n  \"reveal_personal_emails\": true,\n  \"reveal_phone_number\": false\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-240, -40],
+      "id": "reveal",
+      "name": "Apollo: REVEAL (1 credit)",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {"id": "a", "name": "ok", "type": "boolean", "value": false},
+            {"id": "b", "name": "error", "type": "string", "value": "apollo_reveal_failed"}
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [40, 220],
+      "id": "respfail",
+      "name": "Reveal failed"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE cold_outreach.gms_leads_enriched\nSET email = $1,\n    email_status = COALESCE($2, 'unknown'),\n    phone = COALESCE($3, phone),\n    apollo_person_payload = $4::jsonb,\n    icp_reasons = icp_reasons || jsonb_build_object('reveal_status', $2, 'revealed_manually', true)\nWHERE id = $5\nRETURNING id, email, email_status;",
+        "options": {"queryReplacement": "={{ [ ($json.person ? $json.person.email : null), ($json.person ? $json.person.email_status : null), ($json.person && $json.person.phone_numbers && $json.person.phone_numbers[0] ? $json.person.phone_numbers[0].sanitized_number : null), ($json.person ? JSON.stringify($json.person) : null), $('Load lead').item.json.id ] }}"}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [40, -40],
+      "id": "applyreveal",
+      "name": "Apply reveal"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {"id": "a", "name": "ok", "type": "boolean", "value": true},
+            {"id": "b", "name": "lead_id", "type": "number", "value": "={{ $json.id }}"},
+            {"id": "c", "name": "email", "type": "string", "value": "={{ $json.email }}"},
+            {"id": "d", "name": "email_status", "type": "string", "value": "={{ $json.email_status }}"}
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [320, -40],
+      "id": "respok",
+      "name": "Success"
+    }
+  ],
+  "connections": {
+    "Reveal webhook": {"main": [[{"node": "Config", "type": "main", "index": 0}]]},
+    "Config": {"main": [[{"node": "Token OK?", "type": "main", "index": 0}]]},
+    "Token OK?": {"main": [[{"node": "Load lead", "type": "main", "index": 0}], [{"node": "Unauthorized", "type": "main", "index": 0}]]},
+    "Load lead": {"main": [[{"node": "Revealable?", "type": "main", "index": 0}]]},
+    "Revealable?": {"main": [[{"node": "Apollo: REVEAL (1 credit)", "type": "main", "index": 0}], [{"node": "Not revealable", "type": "main", "index": 0}]]},
+    "Apollo: REVEAL (1 credit)": {"main": [[{"node": "Apply reveal", "type": "main", "index": 0}], [{"node": "Reveal failed", "type": "main", "index": 0}]]},
+    "Apply reveal": {"main": [[{"node": "Success", "type": "main", "index": 0}]]}
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

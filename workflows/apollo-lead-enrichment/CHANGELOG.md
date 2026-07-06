@@ -7,7 +7,8 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/). Dates ar
 
 ### Added
 - **Part 1, `1-gms-scrape-start.json`** - a form-driven scrape trigger. It records the run, launches the Apify Google Maps actor, and registers Apify's run-finished webhook (base64 `webhooks` query param), so the whole pipeline runs end to end from a single form submission. The template previously shipped only the enrichment half and left the trigger to you.
-- **`viewer/`** - a lightweight read-only viewer for the cold-lead table. One Python file plus one self-contained HTML page, no framework, no CDN. SELECT-only on a forced read-only connection.
+- **Part 3, `3-manual-reveal.json`** - an optional, token-gated webhook that reveals a single unrevealed contact on demand (Apollo `people/match` + DB update). Not bound by the monthly cap; deliberate one-click-one-credit.
+- **`viewer/`** - a lightweight read-only viewer for the cold-lead table. One Python file plus one self-contained HTML page, no framework, no CDN. SELECT-only on a forced read-only connection. With Part 3 wired (`REVEAL_WEBHOOK_URL` + `REVEAL_TOKEN`), it adds a per-row **Reveal** button that relays to the reveal webhook; the viewer never writes the database or holds the Apollo key.
 
 ### Changed
 - **Part 2 reveal gate** now evaluates *every* enriched contact in a run, not just the first. It carries a running within-batch counter so the monthly cap still holds exactly.

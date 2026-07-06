@@ -62,6 +62,9 @@
   .pager button{background:var(--panel2);color:var(--ink);border:1px solid var(--line);
     border-radius:6px;padding:5px 12px;cursor:pointer}
   .pager button:disabled{opacity:.4;cursor:default}
+  .revealbtn{background:var(--accent);color:#fff;border:none;border-radius:5px;
+    padding:3px 10px;cursor:pointer;font-size:12px}
+  .revealbtn:hover{filter:brightness(1.1)} .revealbtn:disabled{opacity:.5;cursor:default}
 </style>
 </head>
 <body>
@@ -117,7 +120,7 @@
 <script>
 const TOKEN = new URLSearchParams(location.search).get("token") || "";
 const tok = p => TOKEN ? (p + (p.includes("?") ? "&" : "?") + "token=" + encodeURIComponent(TOKEN)) : p;
-let offset = 0, limit = 100, lastTotal = 0;
+let offset = 0, limit = 100, lastTotal = 0, revealEnabled = false;
 
 function scoreColor(s){
   s = s || 0;
@@ -137,6 +140,7 @@ async function getJSON(url){
 async function loadStats(){
   const d = await getJSON("/api/stats");
   const s = d.stats || {};
+  revealEnabled = !!d.reveal_enabled;
   const tiles = [
     ["total_leads","Leads",""],
     ["distinct_firms","Firms",""],
@@ -176,7 +180,9 @@ async function loadLeads(){
     const li = r.person_linkedin_url || r.linkedin_url;
     const emailCell = r.email
       ? `<a href="mailto:${esc(r.email)}">${esc(r.email)}</a>`
-      : `<span class="email masked">masked</span>`;
+      : (revealEnabled
+          ? `<button class="revealbtn" onclick="event.stopPropagation();reveal(${r.id},this)">Reveal</button>`
+          : `<span class="email masked">masked</span>`);
     tr.innerHTML =
       `<td><span class="score" style="${scoreColor(r.icp_score)}">${r.icp_score??0}</span></td>`+
       `<td class="firm"><strong>${esc(r.firm_name||r.canonical_domain||"—")}</strong>`+
@@ -222,6 +228,19 @@ function renderPager(){
 }
 function page(dir){ offset = Math.max(0, offset + dir*limit); loadLeads(); }
 function reload(){ offset=0; loadLeads().catch(showErr); }
+
+async function reveal(id, btn){
+  if(!confirm("Reveal this contact's email? This spends one Apollo credit.")) return;
+  btn.disabled = true; btn.textContent = "...";
+  try{
+    const r = await fetch(tok("/api/reveal"), {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({lead_id:id})});
+    const d = await r.json();
+    if(d.ok){ await loadStats(); await loadLeads(); }
+    else { btn.disabled=false; btn.textContent="Reveal"; showErr(d.error||d.reason||"reveal failed"); }
+  }catch(e){ btn.disabled=false; btn.textContent="Reveal"; showErr(e.message||e); }
+}
 
 let t; function debounced(){ clearTimeout(t); t=setTimeout(reload,250); }
 function showErr(e){ document.getElementById("err").textContent = e.message||e; }

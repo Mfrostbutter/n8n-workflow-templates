@@ -68,9 +68,11 @@ in the Score ICP node, so spend the most effort there.
    - REVEAL_MIN_SCORE = the ICP score a lead must hit before I spend a credit
      (default 60; raise it to be stingier, lower it to reveal more)
 
-6. Import both workflows. Give me the exact n8n menu path to import, then have me
+6. Import the workflows. Give me the exact n8n menu path to import, then have me
    import 1-gms-scrape-start.json (Part 1, the scrape trigger) and
-   2-apollo-lead-enrichment.json (Part 2, the enrichment).
+   2-apollo-lead-enrichment.json (Part 2, the enrichment). 3-manual-reveal.json
+   (Part 3) is optional; import it only if I want a Reveal button in the viewer to
+   reveal individual leads on demand (see step 11).
 
 7. Attach credentials (none are bundled). Walk me through:
    - A Postgres credential on every database node in both workflows (they share
@@ -100,6 +102,14 @@ in the Score ICP node, so spend the most effort there.
     unqualified leads. Do NOT sync it into my CRM. My outbound sequence reads from
     gms_leads_enriched and logs sends; a lead only becomes a CRM contact when they
     REPLY. Ask how my stack does outbound and help me wire the reply-to-CRM step.
+
+11. (Optional) On-demand reveal from the viewer. Only if I said I want it: have me
+    import 3-manual-reveal.json, attach the Postgres and Apollo credentials, set
+    REVEAL_TOKEN in its Config node to a secret string, and activate it. Then run
+    the viewer (viewer/) with REVEAL_WEBHOOK_URL pointed at that webhook and
+    REVEAL_TOKEN matching. Each unrevealed row gets a Reveal button. Remind me each
+    manual reveal spends one Apollo credit and is not bounded by the monthly cap,
+    so the token must stay private.
 
 ## Constraints
 - The Score ICP node is the only place with my business logic. Guide me to edit it,

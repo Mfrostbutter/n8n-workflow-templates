@@ -10,9 +10,9 @@ Buying enrichment credits by the thousand is how most people burn their budget o
 
 So this workflow does all the free work first, scores every business against your ideal customer profile using signals that cost nothing, and spends a reveal credit **only** when a lead clears your score bar, has a decision-maker title, and you are still under your monthly cap. Everything else lands in the table unrevealed, ready for a manual reveal later if you want it.
 
-## The two workflows
+## The workflows
 
-The pipeline ships as two n8n workflows that hand off automatically. Import both, attach your credentials, and a single form submission runs the whole thing end to end. There is also a read-only [`viewer/`](viewer/) to browse the leads that land.
+The pipeline ships as three n8n workflows: Parts 1 and 2 hand off automatically to run it end to end, and Part 3 is an optional on-demand reveal. Import what you need, attach your credentials, and a single form submission runs the whole thing. There is also a read-only [`viewer/`](viewer/) to browse the leads that land (and, with Part 3 wired, reveal them on demand).
 
 ### Part 1 - `1-gms-scrape-start.json` (the trigger)
 
@@ -32,6 +32,10 @@ Dedup, free Apollo enrichment, ICP scoring, and the credit-gated reveal. Four la
 | **Per-place fan-out** | Fetch the dataset, normalize each place, dedup against `seen_leads`, insert new raw rows, skip rows with no domain. |
 | **Apollo enrich (FREE) + ICP score** | Org enrich + people search (both free, masked emails), then score against your ICP. Insert enriched rows as `unrevealed`. |
 | **Reveal gate (SPENDS A CREDIT)** | Check the monthly budget, gate on score + title + cap, reveal the email for winners only, note the skip reason for the rest. |
+
+### Part 3 - `3-manual-reveal.json` (optional on-demand reveal)
+
+Part 2 leaves most contacts unrevealed on purpose. Part 3 is a small webhook that reveals one when you ask: `POST /webhook/manual-reveal` with a `lead_id` and a shared token, and it does the Apollo reveal plus the DB update for that single lead. The read-only [`viewer/`](viewer/) uses it to show a **Reveal** button next to unrevealed contacts, so you never put your Apollo key or a write connection in the viewer. Optional; skip it if you only want automatic reveals. Note: manual reveals are deliberate (one click, one credit) and are not bound by the Part 2 monthly cap, so keep the token private.
 
 ## What it does
 

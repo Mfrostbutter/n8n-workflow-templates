@@ -45,6 +45,12 @@ python3 app.py
 |---|---|---|
 | `VIEWER_PORT` | `8787` | Port to serve on. |
 | `VIEWER_TOKEN` | (none) | If set, API calls require `?token=...`. A thin gate for when you expose it on a LAN or private mesh. Open the page as `http://host:8787/?token=YOURTOKEN`. |
+| `REVEAL_WEBHOOK_URL` | (none) | If set, the viewer shows a **Reveal** button next to unrevealed contacts. Clicking it POSTs the lead id to the viewer, which relays it (with `REVEAL_TOKEN`) to your Part 3 `manual-reveal` webhook. Leave unset to keep the viewer strictly read-only. |
+| `REVEAL_TOKEN` | (none) | Shared secret forwarded to the reveal webhook. Must match `REVEAL_TOKEN` in Part 3's Config node. Stays server-side; never sent to the browser. |
+
+## Revealing on demand (optional)
+
+Part 2 leaves most contacts unrevealed. If you deploy Part 3 (`3-manual-reveal.json`) and set `REVEAL_WEBHOOK_URL` + `REVEAL_TOKEN`, each unrevealed row gets a **Reveal** button. The reveal itself (the Apollo call and the database write) happens in n8n, not here: the viewer only relays the request. Its own database connection is still opened `readonly=True` and only ever runs `SELECT`, so the read-only guarantee holds even with reveal enabled.
 
 The server binds to `127.0.0.1` (localhost only). To reach it from another
 machine, front it with your own reverse proxy / mesh (e.g. a private overlay
