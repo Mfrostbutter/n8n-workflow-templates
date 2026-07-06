@@ -3,13 +3,16 @@
   "nodes": [
     {
       "parameters": {
-        "content": "# Part 1 - Scrape Start\n\nKicks off a Google Maps scrape and wires it to a webhook callback so you never poll or guess a wait time. When the scrape finishes, Apify calls **Part 2** (the enrichment workflow) automatically.\n\n## Flow\n1. Form submission: vertical, search terms (comma-separated), location, max per search.\n2. Insert a `cold_outreach.gms_runs` row, capture the run id.\n3. Build a base64 `webhooks` param and POST the Apify Google Maps actor. Apify fires `WEBHOOK_BASE/webhook/maps-lead-enrich-inbound` on finish, embedding the run id so Part 2 joins back to the right row.\n4. Update the row with the Apify run id.\n5. Show a `queued` completion page.\n\n## Before activating\n- Attach a **Postgres** credential (any Postgres 12+). Apply `sql/schema.sql` first.\n- Attach an **Apify HTTP Query Auth** credential (sends your token as the `token` query param).\n- Set `WEBHOOK_BASE` in the **Config** node to your public n8n URL, e.g. `https://your-n8n.example.com`. The `/webhook/maps-lead-enrich-inbound` path must be reachable by Apify.\n- Import **Part 2** (`apollo-lead-enrichment.json`) and activate it too, so the callback has somewhere to land.",
+        "content": "# Part 1 - Scrape Start\n\nKicks off a Google Maps scrape and wires it to a webhook callback so you never poll or guess a wait time. When the scrape finishes, Apify calls **Part 2** (the enrichment workflow) automatically.\n\n## Flow\n1. Form submission: vertical, search terms (comma-separated), location, max per search.\n2. Insert a `cold_outreach.gms_runs` row, capture the run id.\n3. Build a base64 `webhooks` param and POST the Apify Google Maps actor. Apify fires `WEBHOOK_BASE/webhook/maps-lead-enrich-inbound` on finish, embedding the run id so Part 2 joins back to the right row.\n4. Update the row with the Apify run id.\n5. The form acks immediately (no completion page to hang on); the run continues in the background.\n\n## Before activating\n- Attach a **Postgres** credential (any Postgres 12+). Apply `sql/schema.sql` first.\n- Attach an **Apify HTTP Query Auth** credential (sends your token as the `token` query param).\n- Set `WEBHOOK_BASE` in the **Config** node to your public n8n URL, e.g. `https://your-n8n.example.com`. The `/webhook/maps-lead-enrich-inbound` path must be reachable by Apify.\n- Import **Part 2** (`apollo-lead-enrichment.json`) and activate it too, so the callback has somewhere to land.",
         "height": 1196,
         "width": 960,
         "color": 5
       },
       "type": "n8n-nodes-base.stickyNote",
-      "position": [-1568, -800],
+      "position": [
+        -1568,
+        -800
+      ],
       "typeVersion": 1,
       "id": "doc-1",
       "name": "Doc"
@@ -43,11 +46,15 @@
             }
           ]
         },
-        "options": {}
+        "options": {},
+        "responseMode": "onReceived"
       },
       "type": "n8n-nodes-base.formTrigger",
       "typeVersion": 2.3,
-      "position": [-1344, -112],
+      "position": [
+        -1344,
+        -112
+      ],
       "id": "trigger-form",
       "name": "On form submission",
       "webhookId": "gms-scrape-start"
@@ -74,7 +81,10 @@
       },
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
-      "position": [-1152, -112],
+      "position": [
+        -1152,
+        -112
+      ],
       "id": "config-set",
       "name": "Config"
     },
@@ -84,7 +94,10 @@
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [-1024, -112],
+      "position": [
+        -1024,
+        -112
+      ],
       "id": "code-parse",
       "name": "Parse form"
     },
@@ -98,7 +111,10 @@
       },
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
-      "position": [-896, -112],
+      "position": [
+        -896,
+        -112
+      ],
       "id": "pg-insert-run",
       "name": "Insert gms_runs"
     },
@@ -107,7 +123,10 @@
       "name": "Build webhooks param",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [-816, -288],
+      "position": [
+        -816,
+        -288
+      ],
       "parameters": {
         "jsCode": "// Apify registers ad-hoc webhooks from a base64-encoded `webhooks` query param on\n// the run POST (not from the actor-input body). Apify interpolates {{resource.*}}\n// only when the placeholder is UNQUOTED, so it substitutes the JSON-stringified\n// value (quotes included). run_pk / vertical are our own values, so we inline them.\nconst item = $input.first().json;\nconst base = $('Parse form').first().json.WEBHOOK_BASE;\nconst webhooks = [{\n  eventTypes: ['ACTOR.RUN.SUCCEEDED', 'ACTOR.RUN.FAILED', 'ACTOR.RUN.ABORTED', 'ACTOR.RUN.TIMED_OUT'],\n  requestUrl: base + '/webhook/maps-lead-enrich-inbound',\n  payloadTemplate: '{\"run_pk\": ' + item.id + ', \"vertical\": \"' + item.vertical + '\", \"apify_run_id\": {{resource.id}}, \"dataset_id\": {{resource.defaultDatasetId}}, \"status\": {{resource.status}}}'\n}];\nreturn [{ json: { id: item.id, vertical: item.vertical, webhooksB64: Buffer.from(JSON.stringify(webhooks)).toString('base64') } }];\n"
       }
@@ -131,7 +150,10 @@
       },
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [-752, -112],
+      "position": [
+        -752,
+        -112
+      ],
       "id": "http-run-actor",
       "name": "Run Apify Actor",
       "onError": "continueErrorOutput"
@@ -146,7 +168,10 @@
       },
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
-      "position": [-352, -128],
+      "position": [
+        -352,
+        -128
+      ],
       "id": "pg-update-run",
       "name": "Update gms_runs"
     },
@@ -160,23 +185,12 @@
       },
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
-      "position": [-1296, 208],
+      "position": [
+        -1296,
+        208
+      ],
       "id": "pg-mark-failed",
       "name": "Mark run failed"
-    },
-    {
-      "parameters": {
-        "operation": "completion",
-        "completionTitle": "Scrape queued",
-        "completionMessage": "=Run #{{ $('Insert gms_runs').first().json.id }} is running on Apify. Results land in your cold-lead table when enrichment finishes; open the read-only viewer (viewer/) to watch them arrive. Verticals queue up independently.",
-        "options": {}
-      },
-      "type": "n8n-nodes-base.form",
-      "typeVersion": 2.3,
-      "position": [-208, -128],
-      "id": "form-complete",
-      "name": "Queued",
-      "webhookId": "gms-scrape-start-complete"
     },
     {
       "parameters": {
@@ -186,7 +200,10 @@
         "color": 4
       },
       "type": "n8n-nodes-base.stickyNote",
-      "position": [-592, -320],
+      "position": [
+        -592,
+        -320
+      ],
       "typeVersion": 1,
       "id": "note-1",
       "name": "Note section 1"
@@ -194,31 +211,82 @@
   ],
   "connections": {
     "On form submission": {
-      "main": [[{ "node": "Config", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Config": {
-      "main": [[{ "node": "Parse form", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Parse form",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Parse form": {
-      "main": [[{ "node": "Insert gms_runs", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Insert gms_runs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Insert gms_runs": {
-      "main": [[{ "node": "Build webhooks param", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Build webhooks param",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Build webhooks param": {
-      "main": [[{ "node": "Run Apify Actor", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Run Apify Actor",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Run Apify Actor": {
       "main": [
-        [{ "node": "Update gms_runs", "type": "main", "index": 0 }],
-        [{ "node": "Mark run failed", "type": "main", "index": 0 }]
+        [
+          {
+            "node": "Update gms_runs",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Mark run failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
-    "Update gms_runs": {
-      "main": [[{ "node": "Queued", "type": "main", "index": 0 }]]
-    },
     "Mark run failed": {
-      "main": [[]]
+      "main": [
+        []
+      ]
     }
   },
   "settings": {
