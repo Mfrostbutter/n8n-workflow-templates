@@ -31,15 +31,23 @@ HTTP call, so the model and even the vendor are a one-node change. Nothing locks
 
 ## The three workflows
 
-- **`4a-outbound-enroller.json`** picks your best unworked leads (verified email, score above
-  your floor, not already enrolled, not suppressed) and lines them up for the sequence. A
-  daily cap ramps volume so a fresh sending domain warms up instead of getting flagged.
-- **`4b-outbound-sender.json`** sends the due message for each enrolled lead, on a schedule,
-  inside your chosen hours and under a daily cap. The AI model writes each email; ListMonk and
-  Mailgun send it; the workflow logs it and schedules the next touch on a 0 / 3 / 5 day drip.
-- **`4c-outbound-events.json`** listens for what happens next. A reply stops the sequence and
-  promotes the contact to your CRM. A Mailgun bounce, complaint, or unsubscribe stops the
-  sequence and adds the address to a permanent do-not-email list.
+**`4a-outbound-enroller.json`** picks your best unworked leads (verified email, score above
+your floor, not already enrolled, not suppressed) and lines them up for the sequence. A
+daily cap ramps volume so a fresh sending domain warms up instead of getting flagged.
+
+![4a: outbound enroller](assets/4a-enroller.png)
+
+**`4b-outbound-sender.json`** sends the due message for each enrolled lead, on a schedule,
+inside your chosen hours and under a daily cap. The AI model writes each email; ListMonk and
+Mailgun send it; the workflow logs it and schedules the next touch on a 0 / 3 / 5 day drip.
+
+![4b: outbound sender](assets/4b-sender.png)
+
+**`4c-outbound-events.json`** listens for what happens next. A reply stops the sequence and
+promotes the contact to your CRM. A Mailgun bounce, complaint, or unsubscribe stops the
+sequence and adds the address to a permanent do-not-email list.
+
+![4c: outbound events](assets/4c-events.png)
 
 ## Setup
 
