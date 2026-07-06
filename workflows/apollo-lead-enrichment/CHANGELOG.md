@@ -11,6 +11,7 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/). Dates ar
 - **`viewer/`** - a lightweight read-only viewer for the cold-lead table. One Python file plus one self-contained HTML page, no framework, no CDN. SELECT-only on a forced read-only connection. With Part 3 wired (`REVEAL_WEBHOOK_URL` + `REVEAL_TOKEN`), it adds a per-row **Reveal** button that relays to the reveal webhook; the viewer never writes the database or holds the Apollo key.
 
 ### Changed
+- **`viewer/` gained a + New scrape button.** With `SCRAPE_FORM_URL` set to your Part 1 form URL, the header shows a button that opens the n8n form in a popup, so you can start a scrape and watch the leads land without leaving the viewer. The viewer only opens the link; n8n owns the scrape start, so the read-only guarantee holds.
 - **Part 2 reveal gate** now evaluates *every* enriched contact in a run, not just the first. It carries a running within-batch counter so the monthly cap still holds exactly.
 - **Part 1 form** acks on submit (`responseMode: onReceived`) instead of ending on a completion-page node. n8n held those executions in "Waiting" until a browser fetched the page, so programmatic submits and abandoned tabs piled up unfinished. They now finish cleanly.
 - **README + AI-SETUP-PROMPT** rewritten for the two-part import, plus the Apify "unquoted variable" gotcha.

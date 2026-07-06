@@ -109,7 +109,9 @@ in the Score ICP node, so spend the most effort there.
     the viewer (viewer/) with REVEAL_WEBHOOK_URL pointed at that webhook and
     REVEAL_TOKEN matching. Each unrevealed row gets a Reveal button. Remind me each
     manual reveal spends one Apollo credit and is not bounded by the monthly cap,
-    so the token must stay private.
+    so the token must stay private. Also optional: set SCRAPE_FORM_URL in the viewer
+    to my Part 1 form URL to get a "+ New scrape" button in the header that opens the
+    n8n form in a popup (the viewer stays read-only; n8n runs the scrape).
 
 ## Constraints
 - The Score ICP node is the only place with my business logic. Guide me to edit it,

@@ -13,6 +13,7 @@ Run:
 Optional:
     VIEWER_TOKEN=secret python3 app.py  # require ?token=secret (thin gate for LAN use)
     VIEWER_PORT=9000 python3 app.py
+    SCRAPE_FORM_URL=https://your-n8n/form/<id> python3 app.py  # "New scrape" button
 
 Dependency: psycopg2 (pip install psycopg2-binary).
 """
@@ -38,6 +39,12 @@ TOKEN = os.environ.get("VIEWER_TOKEN", "")
 # read-only; it never writes your database.
 REVEAL_URL = os.environ.get("REVEAL_WEBHOOK_URL", "")
 REVEAL_TOKEN = os.environ.get("REVEAL_TOKEN", "")
+
+# Optional "New scrape" launcher. If SCRAPE_FORM_URL is set (your Part 1 n8n Form
+# Trigger URL), the viewer shows a button that opens that form in a popup window.
+# The viewer never submits the form or fires the webhook itself; n8n owns the
+# scrape start, so the viewer stays strictly read-only.
+FORM_URL = os.environ.get("SCRAPE_FORM_URL", "")
 
 # Columns exposed to the table view. Heavy jsonb payloads are fetched only on the
 # per-lead detail call, never in the list, to keep the grid fast.
@@ -212,7 +219,8 @@ class Handler(BaseHTTPRequestHandler):
             with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
                 if u.path == "/api/stats":
                     return self._json({"stats": q_stats(cur), "runs": q_runs(cur),
-                                       "reveal_enabled": bool(REVEAL_URL)})
+                                       "reveal_enabled": bool(REVEAL_URL),
+                                       "form_url": FORM_URL})
                 if u.path == "/api/leads":
                     return self._json(q_leads(cur, params))
                 if u.path == "/api/lead":

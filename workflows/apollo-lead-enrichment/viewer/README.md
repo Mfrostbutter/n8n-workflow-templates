@@ -45,8 +45,13 @@ python3 app.py
 |---|---|---|
 | `VIEWER_PORT` | `8787` | Port to serve on. |
 | `VIEWER_TOKEN` | (none) | If set, API calls require `?token=...`. A thin gate for when you expose it on a LAN or private mesh. Open the page as `http://host:8787/?token=YOURTOKEN`. |
+| `SCRAPE_FORM_URL` | (none) | If set (your Part 1 `1-gms-scrape-start.json` n8n Form Trigger URL), the header shows a **+ New scrape** button that opens that form in a popup window. The viewer never submits the form or fires the webhook itself, so it stays read-only. |
 | `REVEAL_WEBHOOK_URL` | (none) | If set, the viewer shows a **Reveal** button next to unrevealed contacts. Clicking it POSTs the lead id to the viewer, which relays it (with `REVEAL_TOKEN`) to your Part 3 `manual-reveal` webhook. Leave unset to keep the viewer strictly read-only. |
 | `REVEAL_TOKEN` | (none) | Shared secret forwarded to the reveal webhook. Must match `REVEAL_TOKEN` in Part 3's Config node. Stays server-side; never sent to the browser. |
+
+## Starting a scrape (optional)
+
+Set `SCRAPE_FORM_URL` to your Part 1 (`1-gms-scrape-start.json`) form URL and the header gets a **+ New scrape** button. It opens the n8n form in a popup; you fill it in there and n8n launches the scrape and fires the webhook chain. The viewer only opens the link, it never submits the form or writes anything, so the read-only guarantee holds. This keeps the whole loop in one place: start a scrape and watch the leads land, without leaving the viewer.
 
 ## Revealing on demand (optional)
 

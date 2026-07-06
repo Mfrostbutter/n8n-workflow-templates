@@ -21,6 +21,9 @@
   button.refresh{background:var(--panel2);color:var(--ink);border:1px solid var(--line);
     border-radius:6px;padding:6px 12px;cursor:pointer;font-size:13px}
   button.refresh:hover{border-color:var(--accent)}
+  button.newscrape{background:var(--accent);color:#fff;border:1px solid var(--accent);
+    border-radius:6px;padding:6px 12px;cursor:pointer;font-size:13px}
+  button.newscrape:hover{filter:brightness(1.1)}
   .stats{display:flex;gap:10px;padding:14px 20px;flex-wrap:wrap}
   .tile{background:var(--panel);border:1px solid var(--line);border-radius:8px;
     padding:10px 14px;min-width:110px}
@@ -73,6 +76,7 @@
   <span class="sub" id="dbnote">read-only view of cold_outreach.gms_leads_enriched</span>
   <span class="spacer"></span>
   <span class="sub" id="err" style="color:#f85149"></span>
+  <button class="newscrape" id="newscrape" hidden onclick="openScrapeForm()">+ New scrape</button>
   <button class="refresh" onclick="loadAll()">Refresh</button>
 </header>
 
@@ -120,7 +124,7 @@
 <script>
 const TOKEN = new URLSearchParams(location.search).get("token") || "";
 const tok = p => TOKEN ? (p + (p.includes("?") ? "&" : "?") + "token=" + encodeURIComponent(TOKEN)) : p;
-let offset = 0, limit = 100, lastTotal = 0, revealEnabled = false;
+let offset = 0, limit = 100, lastTotal = 0, revealEnabled = false, formUrl = "";
 
 function scoreColor(s){
   s = s || 0;
@@ -141,6 +145,8 @@ async function loadStats(){
   const d = await getJSON("/api/stats");
   const s = d.stats || {};
   revealEnabled = !!d.reveal_enabled;
+  formUrl = d.form_url || "";
+  document.getElementById("newscrape").hidden = !formUrl;
   const tiles = [
     ["total_leads","Leads",""],
     ["distinct_firms","Firms",""],
@@ -240,6 +246,12 @@ async function reveal(id, btn){
     if(d.ok){ await loadStats(); await loadLeads(); }
     else { btn.disabled=false; btn.textContent="Reveal"; showErr(d.error||d.reason||"reveal failed"); }
   }catch(e){ btn.disabled=false; btn.textContent="Reveal"; showErr(e.message||e); }
+}
+
+function openScrapeForm(){
+  if(!formUrl) return;
+  const w = window.open(formUrl, "gms-scrape", "width=560,height=820");
+  if(w) w.opener = null;   // the form runs on n8n; the viewer never touches it
 }
 
 let t; function debounced(){ clearTimeout(t); t=setTimeout(reload,250); }
