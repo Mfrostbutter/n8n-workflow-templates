@@ -39,6 +39,19 @@ Dedup, free Apollo enrichment, ICP scoring, and the credit-gated reveal. Four la
 
 Part 2 leaves most contacts unrevealed on purpose. Part 3 is a small webhook that reveals one when you ask: `POST /webhook/manual-reveal` with a `lead_id` and a shared token, and it does the Apollo reveal plus the DB update for that single lead. The read-only [`viewer/`](viewer/) uses it to show a **Reveal** button next to unrevealed contacts, so you never put your Apollo key or a write connection in the viewer. Optional; skip it if you only want automatic reveals. Note: manual reveals are deliberate (one click, one credit) and are not bound by the Part 2 monthly cap, so keep the token private.
 
+## The viewer
+
+![Cold-lead viewer](viewer/assets/viewer.png)
+
+A lightweight, read-only web view over the cold-lead table: one Python file and one self-contained HTML page, no framework, no build step, no CDN. It is read-only by construction, every database connection is opened read-only and only `SELECT` queries are issued, so it is safe to point at your production leads database.
+
+- **Stat tiles**: total leads, distinct firms, revealed contacts, credits spent this month, unrevealed count, average and top ICP score.
+- **Filter and sort** by firm, domain, name, or title; by minimum score, status, or run. Click any row to expand the ICP score reasons and the raw Apollo org/person payloads.
+- **+ New scrape** (optional): set `SCRAPE_FORM_URL` to your Part 1 form and the header shows a button that opens the n8n form in a popup, so you can start a scrape and watch the leads land without leaving the viewer. The viewer only opens the link; n8n runs the scrape.
+- **Reveal** (optional): with Part 3 wired, each unrevealed row gets a Reveal button that reveals that one lead on demand. The Apollo call and the database write happen in n8n, so the viewer never holds your Apollo key or writes your database.
+
+Run it and see the full options in [`viewer/README.md`](viewer/README.md).
+
 ## What it does
 
 1. Your Google Maps scrape finishes and calls the workflow's webhook with the run id.
