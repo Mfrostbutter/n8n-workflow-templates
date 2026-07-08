@@ -4,26 +4,81 @@
     {
       "parameters": {
         "triggerOn": "specificFolder",
-        "folderToWatch": { "__rl": true, "mode": "id", "value": "YOUR_DRIVE_FOLDER_ID", "cachedResultName": "Product Docs" },
+        "folderToWatch": {
+          "__rl": true,
+          "mode": "id",
+          "value": "YOUR_DRIVE_FOLDER_ID",
+          "cachedResultName": "Docs to ingest"
+        },
         "event": "fileCreated",
-        "pollTimes": { "item": [ { "mode": "everyMinute" } ] },
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
         "options": {}
       },
       "type": "n8n-nodes-base.googleDriveTrigger",
       "typeVersion": 1,
-      "position": [0, 0],
+      "position": [
+        -112,
+        -16
+      ],
       "id": "11111111-1111-4111-8111-111111111111",
       "name": "Google Drive Trigger"
     },
     {
       "parameters": {
-        "operation": "download",
-        "fileId": { "__rl": true, "mode": "id", "value": "={{ $json.id }}", "cachedResultName": "={{ $json.name }}" },
+        "mode": "manual",
+        "includeOtherFields": true,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "cfg-collection",
+              "name": "collection",
+              "value": "document_knowledge",
+              "type": "string"
+            }
+          ]
+        },
         "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        112,
+        -16
+      ],
+      "id": "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+      "name": "Config"
+    },
+    {
+      "parameters": {
+        "operation": "download",
+        "fileId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $json.id }}",
+          "cachedResultName": "={{ $json.name }}"
+        },
+        "options": {
+          "googleFileConversion": {
+            "conversion": {
+              "docsToFormat": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+              "sheetsToFormat": "text/csv",
+              "slidesToFormat": "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+            }
+          }
+        }
       },
       "type": "n8n-nodes-base.googleDrive",
       "typeVersion": 3,
-      "position": [220, 0],
+      "position": [
+        336,
+        -16
+      ],
       "id": "22222222-2222-4222-8222-222222222222",
       "name": "Download File"
     },
@@ -33,12 +88,23 @@
         "url": "http://markitdown:8080/convert",
         "sendBody": true,
         "contentType": "multipart-form-data",
-        "bodyParameters": { "parameters": [ { "parameterType": "formBinaryData", "name": "file", "inputDataFieldName": "data" } ] },
+        "bodyParameters": {
+          "parameters": [
+            {
+              "parameterType": "formBinaryData",
+              "name": "file",
+              "inputDataFieldName": "data"
+            }
+          ]
+        },
         "options": {}
       },
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.4,
-      "position": [440, 0],
+      "position": [
+        560,
+        -16
+      ],
       "id": "33333333-3333-4333-8333-333333333333",
       "name": "MarkItDown Convert",
       "retryOnFail": true
@@ -47,22 +113,33 @@
       "parameters": {
         "text": "={{ $json.markdown }}",
         "schemaType": "manual",
-        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"product_line\": { \"type\": \"string\" },\n    \"sku\": { \"type\": \"string\" },\n    \"doc_type\": { \"type\": \"string\" },\n    \"effective_date\": { \"type\": \"string\" },\n    \"audience\": { \"type\": \"string\" }\n  }\n}"
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"title\": { \"type\": \"string\", \"description\": \"The document title.\" },\n    \"doc_type\": { \"type\": \"string\", \"description\": \"The kind of document, e.g. guide, policy, spec, FAQ, release notes.\" },\n    \"summary\": { \"type\": \"string\", \"description\": \"A one or two sentence summary of what the document covers.\" },\n    \"topics\": { \"type\": \"array\", \"items\": { \"type\": \"string\" }, \"description\": \"The main subjects the document covers, as a list of short phrases.\" },\n    \"keywords\": { \"type\": \"array\", \"items\": { \"type\": \"string\" }, \"description\": \"Salient search keywords or terms, lowercase.\" },\n    \"entities\": { \"type\": \"array\", \"items\": { \"type\": \"string\" }, \"description\": \"Notable named things mentioned: products, models, people, organizations, versions, standards.\" },\n    \"effective_date\": { \"type\": \"string\", \"description\": \"A relevant date if present (published, effective, or revised), else empty.\" },\n    \"audience\": { \"type\": \"string\", \"description\": \"Who the document is written for, e.g. customers, engineers, internal ops.\" }\n  }\n}"
       },
       "type": "@n8n/n8n-nodes-langchain.informationExtractor",
       "typeVersion": 1.2,
-      "position": [660, 0],
+      "position": [
+        832,
+        32
+      ],
       "id": "44444444-4444-4444-8444-444444444444",
       "name": "Information Extractor"
     },
     {
       "parameters": {
-        "model": { "__rl": true, "mode": "list", "value": "gpt-4o-mini", "cachedResultName": "gpt-4o-mini" },
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4o-mini",
+          "cachedResultName": "gpt-4o-mini"
+        },
         "options": {}
       },
       "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
       "typeVersion": 1.3,
-      "position": [660, 240],
+      "position": [
+        880,
+        208
+      ],
       "id": "55555555-5555-4555-8555-555555555555",
       "name": "OpenAI Chat Model"
     },
@@ -70,20 +147,30 @@
       "parameters": {
         "mode": "runOnceForAllItems",
         "language": "javaScript",
-        "jsCode": "const results = [];\nconst mdItems = $('MarkItDown Convert').all();\nconst trigItems = $('Google Drive Trigger').all();\nfor (let i = 0; i < items.length; i++) {\n  const md = mdItems[i].json.markdown;\n  const t = trigItems[i].json;\n  const ex = items[i].json.output || {};\n  const hash = crypto.createHash('sha256').update(md || '').digest('hex');\n  results.push({ json: {\n    markdown: md,\n    metadata: {\n      file_id: t.id,\n      file_name: t.name,\n      source: 'google_drive',\n      mime_type: t.mimeType,\n      modified_time: t.modifiedTime,\n      product_line: ex.product_line ?? null,\n      sku: ex.sku ?? null,\n      doc_type: ex.doc_type ?? null,\n      effective_date: ex.effective_date ?? null,\n      audience: ex.audience ?? null,\n      content_hash: hash,\n      ingested_at: new Date().toISOString()\n    }\n  } });\n}\nreturn results;"
+        "jsCode": "// ── Meta tagging (customize with AI-SETUP-PROMPT.md) ───────────────────────\n// Merges the LLM-extracted fields with the deterministic fields from Drive\n// into one metadata object per document. To retarget this pipeline to a\n// different documentation type, change the `extracted` mapping below so its\n// keys match the fields you defined in the Information Extractor schema, and\n// mirror those keys in the Default Data Loader node.\nfunction contentHash(str) {\n  // Fast non-crypto fingerprint (FNV-1a style, 64-bit hex). No 'crypto'\n  // dependency, so it runs in both the built-in Code node and the external\n  // task runner. Good enough for change-detection and dedup.\n  let h1 = 0x811c9dc5;\n  let h2 = (0x811c9dc5 ^ 0x5bd1e995) >>> 0;\n  for (let i = 0; i < str.length; i++) {\n    const c = str.charCodeAt(i);\n    h1 = Math.imul(h1 ^ c, 0x01000193);\n    h2 = Math.imul(h2 ^ c, 0x01000193);\n  }\n  const hex = (n) => (n >>> 0).toString(16).padStart(8, '0');\n  return hex(h1) + hex(h2);\n}\nconst results = [];\nconst mdItems = $('MarkItDown Convert').all();\nconst trigItems = $('Google Drive Trigger').all();\nfor (let i = 0; i < items.length; i++) {\n  const md = mdItems[i].json.markdown;\n  const t = trigItems[i].json;\n  const ex = items[i].json.output || {};\n  const hash = contentHash(md || '');\n\n  // Fields the LLM pulled out of the document body. Edit these to match your\n  // Information Extractor schema.\n  const extracted = {\n    title: ex.title ?? null,\n    doc_type: ex.doc_type ?? null,\n    summary: ex.summary ?? null,\n    topics: Array.isArray(ex.topics) ? ex.topics : [],\n    keywords: Array.isArray(ex.keywords) ? ex.keywords : [],\n    entities: Array.isArray(ex.entities) ? ex.entities : [],\n    effective_date: ex.effective_date ?? null,\n    audience: ex.audience ?? null,\n  };\n\n  // Deterministic fields from the source system. Usually leave as-is.\n  const provenance = {\n    file_id: t.id,\n    file_name: t.name,\n    source: 'google_drive',\n    mime_type: t.mimeType,\n    modified_time: t.modifiedTime,\n    content_hash: hash,\n    ingested_at: new Date().toISOString(),\n  };\n\n  results.push({ json: {\n    markdown: md,\n    metadata: { ...extracted, ...provenance },\n  } });\n}\nreturn results;"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [880, 0],
+      "position": [
+        1136,
+        48
+      ],
       "id": "66666666-6666-4666-8666-666666666666",
       "name": "Assemble Metadata"
     },
     {
       "parameters": {
         "method": "POST",
-        "url": "https://YOUR_QDRANT_HOST:6333/collections/product_knowledge/points/delete",
+        "url": "=https://YOUR_QDRANT_HOST:6333/collections/{{ $('Config').first().json.collection }}/points/delete",
         "sendHeaders": true,
-        "headerParameters": { "parameters": [ { "name": "api-key", "value": "={{ $env.QDRANT_API_KEY }}" } ] },
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "api-key",
+              "value": "={{ $env.QDRANT_API_KEY }}"
+            }
+          ]
+        },
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={\n  \"filter\": {\n    \"must\": [\n      { \"key\": \"metadata.file_id\", \"match\": { \"value\": \"{{ $json.metadata.file_id }}\" } }\n    ]\n  }\n}",
@@ -91,20 +178,46 @@
       },
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.4,
-      "position": [1100, 0],
+      "position": [
+        1392,
+        48
+      ],
       "id": "77777777-7777-4777-8777-777777777777",
       "name": "Delete Existing Vectors",
       "retryOnFail": true
     },
     {
       "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "// ── Structure-aware chunking ───────────────────────────────────────────────\n// Chunks Markdown by heading so each chunk is a coherent section. Three tiers:\n//   1. Real Markdown headings (#..######) when present -> true structure\n//      (Word / Google Doc / HTML / Markdown keep their heading styles).\n//   2. Heuristic heading recovery for flat text: most PDFs convert to plain\n//      paragraphs with no '#', so short title-like lines become boundaries.\n//   3. Clean, line-aware fixed-size windows as a last resort.\n// Also strips converter noise (form feeds, page numbers, repeating page\n// headers/footers). Each chunk carries its heading breadcrumb (section_path),\n// prepended to the embedded text. Single source of truth for chunking; the\n// recursive splitter downstream is a large pass-through.\nconst MAX_CHARS = 1500;   // section-size ceiling before sub-splitting\nconst OVERLAP_LINES = 2;  // whole trailing lines carried into the next chunk\n\nconst src = $('Assemble Metadata').first().json;\nlet md = src.markdown || '';\nconst meta = src.metadata || {};\n\n// 1. Clean converter noise.\nmd = md.replace(/\\f/g, '\\n');\nconst rawLines = md.split('\\n');\nconst freq = {};\nfor (const l of rawLines) {\n  const t = l.trim();\n  if (t && t.length <= 40) freq[t] = (freq[t] || 0) + 1;\n}\nconst isNoise = (t) => {\n  if (!t) return false;\n  if (/^\\d{1,4}$/.test(t)) return true;                        // lone page number\n  if (/\\d{1,2}:\\d{2}\\s*(AM|PM)?/i.test(t) && t.length <= 40) return true; // timestamp\n  if ((freq[t] || 0) >= 3 && t.length <= 40) return true;      // repeating header/footer\n  return false;\n};\nconst lines = rawLines.filter((l) => !isNoise(l.trim()));\n\n// 2. Detect headings.\nconst realHeadings = lines.filter((l) => /^#{1,6}\\s+\\S/.test(l)).length;\nconst isHeuristicHeading = (line) => {\n  const t = line.trim();\n  if (!t || t.length > 60) return false;\n  if (/^[•\\-*◦▪·]/.test(t)) return false;      // bullet / sub-bullet\n  if (/^\\d+[.)]\\s/.test(t)) return false;       // enumerated list\n  if (!/^[A-Z0-9#]/.test(t)) return false;      // titles start capitalized\n  if (/[.,:;]$/.test(t)) return false;          // ends like prose\n  if (t.split(/\\s+/).length > 8) return false;  // too long to be a title\n  if (!/[A-Za-z]/.test(t)) return false;\n  return true;\n};\n\nconst sections = [];\nlet stack = [];\nlet buf = [];\nlet curPath = '';\nconst pushSection = () => {\n  const text = buf.join('\\n').trim();\n  if (text) sections.push({ path: curPath, text });\n  buf = [];\n};\n\nif (realHeadings >= 2) {\n  for (const line of lines) {\n    const m = line.match(/^(#{1,6})\\s+(.*)$/);\n    if (m) {\n      pushSection();\n      const level = m[1].length;\n      const title = m[2].trim();\n      stack = stack.filter((s) => s.level < level);\n      stack.push({ level, title });\n      curPath = stack.map((s) => s.title).join(' > ');\n      buf.push(line);\n    } else {\n      buf.push(line);\n    }\n  }\n  pushSection();\n} else {\n  for (const line of lines) {\n    if (isHeuristicHeading(line)) {\n      pushSection();\n      curPath = line.trim();\n      buf.push(line);\n    } else {\n      buf.push(line);\n    }\n  }\n  pushSection();\n}\nif (!sections.length && lines.join('\\n').trim()) {\n  sections.push({ path: '', text: lines.join('\\n').trim() });\n}\n\n// 3. Line-aware sub-split of oversized sections.\nconst subSplit = (text) => {\n  if (text.length <= MAX_CHARS) return [text];\n  const ls = text.split('\\n');\n  const out = [];\n  let cur = [];\n  let len = 0;\n  for (const l of ls) {\n    if (len && len + l.length + 1 > MAX_CHARS) {\n      out.push(cur.join('\\n').trim());\n      cur = cur.slice(-OVERLAP_LINES);\n      len = cur.join('\\n').length;\n    }\n    cur.push(l);\n    len += l.length + 1;\n  }\n  if (cur.join('\\n').trim()) out.push(cur.join('\\n').trim());\n  return out;\n};\n\n// 4. Emit one item per chunk.\nconst results = [];\nlet idx = 0;\nfor (const sec of sections) {\n  for (const piece of subSplit(sec.text)) {\n    const prefix = sec.path ? '[' + sec.path + ']\\n\\n' : '';\n    results.push({ json: {\n      text: prefix + piece,\n      heading: sec.path ? sec.path.split(' > ').pop() : null,\n      section_path: sec.path,\n      chunk_index: idx++,\n      ...meta,\n    } });\n  }\n}\nreturn results;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1568,
+        48
+      ],
+      "id": "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+      "name": "Chunk by Structure"
+    },
+    {
+      "parameters": {
         "mode": "insert",
-        "qdrantCollection": { "__rl": true, "mode": "id", "value": "product_knowledge", "cachedResultName": "product_knowledge" },
+        "qdrantCollection": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $('Config').first().json.collection }}",
+          "cachedResultName": "document_knowledge"
+        },
         "options": {}
       },
       "type": "@n8n/n8n-nodes-langchain.vectorStoreQdrant",
       "typeVersion": 1.3,
-      "position": [1320, 0],
+      "position": [
+        1760,
+        0
+      ],
       "id": "88888888-8888-4888-8888-888888888888",
       "name": "Qdrant Insert"
     },
@@ -112,56 +225,354 @@
       "parameters": {
         "dataType": "json",
         "jsonMode": "expressionData",
-        "jsonData": "={{ $('Assemble Metadata').item.json.markdown }}",
+        "jsonData": "={{ $json.text }}",
         "textSplittingMode": "custom",
         "options": {
           "metadata": {
             "metadataValues": [
-              { "name": "file_id", "value": "={{ $('Assemble Metadata').item.json.metadata.file_id }}" },
-              { "name": "product_line", "value": "={{ $('Assemble Metadata').item.json.metadata.product_line }}" },
-              { "name": "sku", "value": "={{ $('Assemble Metadata').item.json.metadata.sku }}" },
-              { "name": "doc_type", "value": "={{ $('Assemble Metadata').item.json.metadata.doc_type }}" },
-              { "name": "effective_date", "value": "={{ $('Assemble Metadata').item.json.metadata.effective_date }}" },
-              { "name": "source", "value": "={{ $('Assemble Metadata').item.json.metadata.source }}" },
-              { "name": "content_hash", "value": "={{ $('Assemble Metadata').item.json.metadata.content_hash }}" }
+              {
+                "name": "file_id",
+                "value": "={{ $json.file_id }}"
+              },
+              {
+                "name": "title",
+                "value": "={{ $json.title }}"
+              },
+              {
+                "name": "doc_type",
+                "value": "={{ $json.doc_type }}"
+              },
+              {
+                "name": "summary",
+                "value": "={{ $json.summary }}"
+              },
+              {
+                "name": "topics",
+                "value": "={{ $json.topics }}"
+              },
+              {
+                "name": "keywords",
+                "value": "={{ $json.keywords }}"
+              },
+              {
+                "name": "entities",
+                "value": "={{ $json.entities }}"
+              },
+              {
+                "name": "effective_date",
+                "value": "={{ $json.effective_date }}"
+              },
+              {
+                "name": "audience",
+                "value": "={{ $json.audience }}"
+              },
+              {
+                "name": "source",
+                "value": "={{ $json.source }}"
+              },
+              {
+                "name": "content_hash",
+                "value": "={{ $json.content_hash }}"
+              },
+              {
+                "name": "heading",
+                "value": "={{ $json.heading }}"
+              },
+              {
+                "name": "section_path",
+                "value": "={{ $json.section_path }}"
+              },
+              {
+                "name": "chunk_index",
+                "value": "={{ $json.chunk_index }}"
+              }
             ]
           }
         }
       },
       "type": "@n8n/n8n-nodes-langchain.documentDefaultDataLoader",
       "typeVersion": 1.1,
-      "position": [1320, 240],
+      "position": [
+        1776,
+        176
+      ],
       "id": "99999999-9999-4999-8999-999999999999",
       "name": "Default Data Loader"
     },
     {
-      "parameters": { "chunkSize": 1000, "chunkOverlap": 150 },
+      "parameters": {
+        "chunkSize": 12000,
+        "chunkOverlap": 0
+      },
       "type": "@n8n/n8n-nodes-langchain.textSplitterRecursiveCharacterTextSplitter",
       "typeVersion": 1,
-      "position": [1220, 440],
+      "position": [
+        1904,
+        304
+      ],
       "id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
       "name": "Recursive Character Text Splitter"
     },
     {
-      "parameters": { "model": "text-embedding-3-large", "options": {} },
+      "parameters": {
+        "model": "text-embedding-3-large",
+        "options": {}
+      },
       "type": "@n8n/n8n-nodes-langchain.embeddingsOpenAi",
       "typeVersion": 1.2,
-      "position": [1520, 240],
+      "position": [
+        1648,
+        208
+      ],
       "id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
       "name": "Embeddings OpenAI"
+    },
+    {
+      "parameters": {
+        "content": "# 📄 Document Fabric: Drive → Qdrant\n\nThe ingestion half of a high-accuracy RAG pipeline. Drop any document into a Google Drive folder and it is normalized to Markdown, tagged with metadata, chunked on structure, embedded, and upserted into Qdrant, automatically.\n\n**Generic by design.** It ingests *any* documentation type. The only content you customize is the **metadata tagging** (the 3 nodes in the yellow zone). Point an LLM at **AI-SETUP-PROMPT.md** and it tailors those fields to your docs.",
+        "height": 300,
+        "width": 636,
+        "color": 4
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        384,
+        -640
+      ],
+      "id": "s1111111-1111-4111-8111-111111111111",
+      "name": "Sticky: Overview"
+    },
+    {
+      "parameters": {
+        "content": "## 1 · Ingest & Normalize\n\n**Trigger** fires on each new file in the watched Drive folder. **Config** sets your Qdrant `collection` name (the one infra value, read by the store nodes downstream). **Download File** pulls the bytes. **MarkItDown Convert** turns any format (PDF, Word, HTML, Google Doc) into clean Markdown, so headings become real section boundaries and tables survive.",
+        "height": 756,
+        "width": 912,
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -176,
+        -320
+      ],
+      "id": "s2222222-2222-4222-8222-222222222222",
+      "name": "Sticky: Ingest"
+    },
+    {
+      "parameters": {
+        "content": "## 2 · Tag Metadata  ✏️ EDIT THIS\n\n**This is the one zone you customize per documentation type.** Three nodes carry the doc-specific fields:\n\n- **Information Extractor** — the schema of *what* to pull from each doc\n- **Assemble Metadata** — maps extracted + Drive fields into one object\n- **Default Data Loader** (right) — which fields ride onto every chunk\n\nMetadata is tagged **before** chunking, so every chunk inherits it and retrieval can filter to the right slice before the semantic search.\n\n➡️ Run **AI-SETUP-PROMPT.md** to generate matching fields for your docs.",
+        "height": 772,
+        "width": 540,
+        "color": 3
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        752,
+        -320
+      ],
+      "id": "s3333333-3333-4333-8333-333333333333",
+      "name": "Sticky: Tag Metadata"
+    },
+    {
+      "parameters": {
+        "content": "## 3 · Chunk & Store\n\n**Delete Existing Vectors** clears any chunks already stored for this `file_id` (idempotent upsert). **Chunk by Structure** splits the Markdown on its heading hierarchy, so each chunk is a whole section, never a mid-section character cut; the heading breadcrumb rides along as `section_path` and is prepended to the embedded text. **Qdrant Insert** embeds and writes the chunks with their inherited metadata.\n\nThe Code node owns chunking; the recursive splitter is a large pass-through backstop. Create the collection at **3072 dimensions** (`text-embedding-3-large`) before the first run.",
+        "height": 752,
+        "width": 760,
+        "color": 6
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1312,
+        -320
+      ],
+      "id": "s4444444-4444-4444-8444-444444444444",
+      "name": "Sticky: Store"
+    },
+    {
+      "parameters": {
+        "content": "## 📈 What This Achieves\n\n**Any document you drop in Drive becomes filterable, structure-aware RAG context in Qdrant, hands-off.**\n\n- 📝 Markdown-first: one clean structure from any source format\n- 🧱 True structure-aware chunking: split on headings, section breadcrumb on every chunk\n- 🏷️ Doc-level metadata every chunk inherits, for pre-filtered retrieval\n- ♻️ Delete-then-insert upsert: no stale vectors on re-ingest\n- 🔀 Retarget to any doc type by editing one zone, guided by an LLM\n\nIngestion only. Keep retrieval in a separate, low-latency workflow.",
+        "height": 304,
+        "width": 620,
+        "color": 4
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1040,
+        -640
+      ],
+      "id": "s5555555-5555-4555-8555-555555555555",
+      "name": "Sticky: Achieves"
+    },
+    {
+      "parameters": {
+        "content": "# 📄➡️ MarkItDown converter (required)\n\nEvery file is converted to Markdown before it is tagged and chunked. **MarkItDown Convert** POSTs the file to an HTTP endpoint that must return `{ \"markdown\": \"...\" }`.\n\nMarkItDown ships as a CLI / library, **not a server**, so run the thin wrapper bundled in the repo:\n\n```\ncd markitdown-service\ndocker compose up -d --build\n```\n\nThat exposes `POST /convert` on port 8080. Then set the **MarkItDown Convert** node URL:\n\n- n8n in the **same Docker network** → `http://markitdown:8080/convert` (default)\n- n8n **elsewhere** → `http://YOUR_CONVERTER_HOST:8080/convert`\n\n### Formats handled\nPDF, Word (.docx), PowerPoint, Excel, CSV, HTML, plain text, images. Native Google Docs / Sheets / Slides are auto-exported by the **Download File** node (Docs→Word, Sheets→CSV, Slides→PowerPoint), so they work too.\n\n### Prefer Word / Google Docs over PDF\nThey keep their heading styles, which gives true structure-aware chunking. PDFs convert to flat text, so headings are recovered heuristically instead (still works, just less precise). If you have a docx→PDF step upstream, drop it.\n\n### Not MarkItDown?\nAny converter that returns `{ \"markdown\": ... }` works (Docling, Unstructured). If yours uses a different field or returns raw text, adjust the Information Extractor `text` expression and the Assemble Metadata `.json.markdown` reference.",
+        "height": 1008,
+        "width": 620,
+        "color": 7
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -1472,
+        -352
+      ],
+      "id": "s6666666-6666-4666-8666-666666666666",
+      "name": "Sticky: MarkItDown"
+    },
+    {
+      "parameters": {
+        "content": "# 🧩 The Code nodes\n\n### Config (Set node)\nSets your Qdrant `collection` name. **Delete Existing Vectors** and **Qdrant Insert** read it from here, so this is the one place to change it. Create that collection at **3072 dimensions** (Cosine) before the first run.\n\n### Assemble Metadata — edit the `extracted` block\nMerges the LLM-extracted fields with deterministic Drive fields (file_id, source, content_hash) into one metadata object per document. To retarget to a different doc type, edit the `extracted = { ... }` map so its keys match your Information Extractor schema, and mirror them in the Default Data Loader.\n\nDefault fields: `title, doc_type, summary, topics[], keywords[], entities[], effective_date, audience`. The array fields break a doc out into its subjects / terms / named things and filter in Qdrant with match-any.\n\n_(Uses a dependency-free content fingerprint, not `crypto`, so it runs on n8n's external task runner.)_\n\n### Chunk by Structure — usually leave as-is\nStructure-aware chunking in three tiers:\n1. **Real Markdown headings** (Word / HTML / Docs) → true sections.\n2. **Flat text** (most PDFs) → recovers headings from short, title-like lines.\n3. **Clean line-aware windows** as a fallback (never cuts mid-sentence).\n\nIt also strips page headers/footers and form feeds, and stamps each chunk with a `section_path` breadcrumb. Tune `MAX_CHARS` / `OVERLAP_LINES` at the top. The **Recursive Character Text Splitter** is a large pass-through backstop — don't shrink it, or it will re-split your sections.\n\n### The 3 nodes you customize per doc type\n**Information Extractor** (what to pull) → **Assemble Metadata** (map it) → **Default Data Loader** (which fields ride on each chunk). Their keys must stay in sync. Run **AI-SETUP-PROMPT.md** to generate all three at once from a description of your documents.",
+        "height": 1004,
+        "width": 620,
+        "color": 4
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -832,
+        -352
+      ],
+      "id": "s7777777-7777-4777-8777-777777777777",
+      "name": "Sticky: Code Nodes"
     }
   ],
   "connections": {
-    "Google Drive Trigger": { "main": [[{ "node": "Download File", "type": "main", "index": 0 }]] },
-    "Download File": { "main": [[{ "node": "MarkItDown Convert", "type": "main", "index": 0 }]] },
-    "MarkItDown Convert": { "main": [[{ "node": "Information Extractor", "type": "main", "index": 0 }]] },
-    "Information Extractor": { "main": [[{ "node": "Assemble Metadata", "type": "main", "index": 0 }]] },
-    "Assemble Metadata": { "main": [[{ "node": "Delete Existing Vectors", "type": "main", "index": 0 }]] },
-    "Delete Existing Vectors": { "main": [[{ "node": "Qdrant Insert", "type": "main", "index": 0 }]] },
-    "OpenAI Chat Model": { "ai_languageModel": [[{ "node": "Information Extractor", "type": "ai_languageModel", "index": 0 }]] },
-    "Default Data Loader": { "ai_document": [[{ "node": "Qdrant Insert", "type": "ai_document", "index": 0 }]] },
-    "Recursive Character Text Splitter": { "ai_textSplitter": [[{ "node": "Default Data Loader", "type": "ai_textSplitter", "index": 0 }]] },
-    "Embeddings OpenAI": { "ai_embedding": [[{ "node": "Qdrant Insert", "type": "ai_embedding", "index": 0 }]] }
+    "Google Drive Trigger": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config": {
+      "main": [
+        [
+          {
+            "node": "Download File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download File": {
+      "main": [
+        [
+          {
+            "node": "MarkItDown Convert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MarkItDown Convert": {
+      "main": [
+        [
+          {
+            "node": "Information Extractor",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Information Extractor": {
+      "main": [
+        [
+          {
+            "node": "Assemble Metadata",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Assemble Metadata": {
+      "main": [
+        [
+          {
+            "node": "Delete Existing Vectors",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Delete Existing Vectors": {
+      "main": [
+        [
+          {
+            "node": "Chunk by Structure",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Chunk by Structure": {
+      "main": [
+        [
+          {
+            "node": "Qdrant Insert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Information Extractor",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Default Data Loader": {
+      "ai_document": [
+        [
+          {
+            "node": "Qdrant Insert",
+            "type": "ai_document",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Recursive Character Text Splitter": {
+      "ai_textSplitter": [
+        [
+          {
+            "node": "Default Data Loader",
+            "type": "ai_textSplitter",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Embeddings OpenAI": {
+      "ai_embedding": [
+        [
+          {
+            "node": "Qdrant Insert",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    }
   },
   "pinData": {},
   "meta": {}
